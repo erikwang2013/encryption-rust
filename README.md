@@ -52,6 +52,8 @@ println!("{}", pet::ASCII);
 
 `pet::NAME` / `pet::TAGLINE` / `pet::ASCII` / `pet::SVG` 四个常量对外公开，README、CLI banner、下游管理界面共用同一份。
 
+宠物的整合点不止 README：**三张设计图右上角各有一枚 Locky 小图标**（纯内联 SVG，GitHub 上直接渲染），[`docs/social-preview.svg`](./docs/social-preview.svg) / `social-preview.png` 是宠物主视觉的 GitHub 社交预览图（1280×640，上传到仓库设置即可）。
+
 `docs/pet.svg` **不能**进 Cargo 的 `exclude` —— `include_str!` 在编译期读它，排掉就当场编译失败（`cargo package` 会直接报错，不会静默漏发）。
 
 ---
@@ -466,6 +468,7 @@ encryption-rust/
 │   ├── architecture-design.svg  架构设计（本 README 引用）
 │   ├── functional-design.svg    功能设计（本 README 引用）
 │   ├── lifecycle.svg            请求生命周期（本 README 引用）
+│   ├── social-preview.svg/png   GitHub 社交预览（宠物 Locky 主视觉，上传仓库设置用）
 │   └── i18n/en/               英文版 README 与三张英文设计图
 ├── Cargo.toml
 ├── SECURITY.md

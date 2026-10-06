@@ -13,6 +13,35 @@
 
   <rect x="0" y="0" width="1000" height="848" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
 
+  <!-- 项目宠物「Locky」小图标（右上角，纯内联，GitHub 上可直接渲染） -->
+  <g transform="translate(932, 16)">
+    <defs>
+      <linearGradient id="lockyBody" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#4F46E5"/>
+        <stop offset="0.55" stop-color="#2563EB"/>
+        <stop offset="1" stop-color="#0E7490"/>
+      </linearGradient>
+      <linearGradient id="lockyShackle" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#E2E8F0"/>
+        <stop offset="1" stop-color="#64748B"/>
+      </linearGradient>
+      <linearGradient id="lockyKey" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#FBBF24"/>
+        <stop offset="1" stop-color="#D97706"/>
+      </linearGradient>
+    </defs>
+    <title>项目宠物 Locky</title>
+    <path d="M7.5 17 A9.5 9.5 0 0 1 26.5 17" fill="none" stroke="url(#lockyShackle)" stroke-width="4.5" stroke-linecap="round"/>
+    <rect x="0" y="15.5" width="34" height="28" rx="9" fill="url(#lockyBody)"/>
+    <circle cx="17" cy="26.5" r="3.6" fill="#F8FAFC"/>
+    <rect x="15.5" y="28.5" width="3" height="7.5" rx="1.5" fill="#F8FAFC"/>
+    <g transform="translate(31.5 31) rotate(-42)">
+      <circle cx="0" cy="0" r="4" fill="none" stroke="url(#lockyKey)" stroke-width="2.6"/>
+      <line x1="0" y1="4" x2="0" y2="13.5" stroke="url(#lockyKey)" stroke-width="2.6" stroke-linecap="round"/>
+      <line x1="0" y1="9.5" x2="3.6" y2="9.5" stroke="url(#lockyKey)" stroke-width="2.6" stroke-linecap="round"/>
+    </g>
+  </g>
+
   <text x="40" y="46" font-size="26" font-weight="700" fill="#0F172A">架构设计</text>
   <text x="40" y="72" font-size="14" fill="#64748B">五族能力 · 契约（trait）→ 注册表 → 门面（Manager）→ 实现 · 外加主密钥工厂与请求守卫</text>
 

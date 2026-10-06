@@ -52,6 +52,8 @@ println!("{}", pet::ASCII);
 
 Four constants are public — `pet::NAME` / `pet::TAGLINE` / `pet::ASCII` / `pet::SVG` — shared by the README, CLI banners, and downstream admin UIs.
 
+The pet lives beyond the README too: **each of the three design diagrams carries a small Locky icon in its top-right corner** (fully inline SVG, so it renders directly on GitHub), and [`social-preview.svg`](../../social-preview.svg) / `social-preview.png` is the pet's key visual for GitHub's repository social preview (1280×640 — upload it in the repository settings).
+
 `docs/pet.svg` **must not** go into Cargo's `exclude` — `include_str!` reads it at compile time, so excluding it fails the build on the spot (`cargo package` errors out rather than silently shipping without it).
 
 ---
@@ -466,6 +468,7 @@ encryption-rust/
 │   ├── architecture-design.svg  architecture design (referenced by this README)
 │   ├── functional-design.svg    functional design (referenced by this README)
 │   ├── lifecycle.svg            request lifecycle (referenced by this README)
+│   ├── social-preview.svg/png   GitHub social preview (pet Locky key visual; upload in repo settings)
 │   └── i18n/en/               English README and the three English design diagrams
 ├── Cargo.toml
 ├── SECURITY.md
