@@ -1,0 +1,140 @@
+<!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 848" width="1000" height="848" role="img"
+     aria-labelledby="archTitle archDesc"
+     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <title id="archTitle">架构设计 — encryption-rust</title>
+  <desc id="archDesc">五族能力（对称加密、非对称加密、哈希、密钥派生、口令派生），每族都由契约 trait、注册表、门面 Manager 与算法实现构成；另含主密钥工厂与请求守卫 Guard 及各框架适配。</desc>
+
+  <defs>
+    <marker id="archArw" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="848" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
+
+  <text x="40" y="46" font-size="26" font-weight="700" fill="#0F172A">架构设计</text>
+  <text x="40" y="72" font-size="14" fill="#64748B">五族能力 · 契约（trait）→ 注册表 → 门面（Manager）→ 实现 · 外加主密钥工厂与请求守卫</text>
+
+  <!-- ① 应用层 -->
+  <rect x="40" y="96" width="920" height="78" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="62" y="126" font-size="14.5" font-weight="700" fill="#0F172A">应用代码</text>
+  <text x="62" y="148" font-size="11" fill="#475569">axum · actix-web · rocket · poem · salvo · warp · bee-rust · e-cat · 纯库 / CLI —— 只依赖契约与门面，不依赖具体算法</text>
+  <text x="62" y="166" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">let blob = manager.encrypt(data.as_bytes())?;</text>
+  <circle cx="938" cy="118" r="14" fill="#EEF2FF"/>
+  <text x="938" y="123" font-size="13" font-weight="700" fill="#4338CA" text-anchor="middle">①</text>
+
+  <line x1="500" y1="174" x2="500" y2="200" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#archArw)"/>
+
+  <!-- ② 门面 -->
+  <text x="40" y="216" font-size="11" fill="#94A3B8" letter-spacing="1">② 门面（Manager）—— 业务层唯一常用入口，默认算法与显式 *_with(identifier, …) 两组方法</text>
+  <g>
+    <rect x="40" y="226" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <text x="52" y="250" font-size="12" font-weight="700" fill="#0F172A">EncryptionManager</text>
+    <text x="52" y="270" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">encrypt() · decrypt()</text>
+    <text x="52" y="290" font-size="9" fill="#94A3B8">默认 aes-256-gcm</text>
+  </g>
+  <g>
+    <rect x="227" y="226" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <text x="239" y="250" font-size="12" font-weight="700" fill="#0F172A">AsymmetricCryptoManager</text>
+    <text x="239" y="270" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">encrypt(明文, 公钥)</text>
+    <text x="239" y="290" font-size="9" fill="#94A3B8">默认 sm2</text>
+  </g>
+  <g>
+    <rect x="414" y="226" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <text x="426" y="250" font-size="12" font-weight="700" fill="#0F172A">HashingManager</text>
+    <text x="426" y="270" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">digest() · digest_hex()</text>
+    <text x="426" y="290" font-size="9" fill="#94A3B8">默认 sha256</text>
+  </g>
+  <g>
+    <rect x="601" y="226" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <text x="613" y="250" font-size="12" font-weight="700" fill="#0F172A">KeyDerivationManager</text>
+    <text x="613" y="270" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive(ikm, salt, …)</text>
+    <text x="613" y="290" font-size="9" fill="#94A3B8">默认 hkdf-sha256</text>
+  </g>
+  <g>
+    <rect x="788" y="226" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <text x="800" y="250" font-size="12" font-weight="700" fill="#0F172A">PasswordBasedKdfManager</text>
+    <text x="800" y="270" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive_from_password()</text>
+    <text x="800" y="290" font-size="9" fill="#94A3B8">默认 pbkdf2-sha256</text>
+  </g>
+
+  <line x1="500" y1="318" x2="500" y2="344" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#archArw)"/>
+
+  <!-- ③ 注册表 -->
+  <text x="40" y="360" font-size="11" fill="#94A3B8" letter-spacing="1">③ 注册表 —— 标识 → 实现；未注册标识返回结构化错误</text>
+  <rect x="40" y="370" width="920" height="92" rx="14" fill="#FFFFFF" stroke="#A5B4FC"/>
+  <text x="62" y="396" font-size="14.5" font-weight="700" fill="#0F172A">Registry&lt;T&gt;</text>
+  <text x="62" y="416" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">register(item) · has(id) · get(id) → Result · identifiers()</text>
+  <text x="62" y="436" font-size="11" fill="#475569">五个实例：Registry&lt;Box&lt;dyn SymmetricCipher&gt;&gt; / &lt;dyn AsymmetricCipher&gt; / &lt;dyn Hasher&gt; / &lt;dyn KeyDerivation&gt; / &lt;dyn PasswordBasedKdf&gt;</text>
+  <text x="62" y="452" font-size="10.5" fill="#94A3B8">以 item.identifier() 为键；同标识重复注册以最后一次为准；registry_mut() 是对外插件点</text>
+
+  <line x1="500" y1="462" x2="500" y2="488" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#archArw)"/>
+
+  <!-- ④ 契约 -->
+  <text x="40" y="504" font-size="11" fill="#94A3B8" letter-spacing="1">④ 契约（trait）—— 业务层唯一需要依赖的东西；全部 Send + Sync，可跨线程共享</text>
+  <g>
+    <rect x="40" y="514" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <text x="52" y="538" font-size="12" font-weight="700" fill="#0F172A">SymmetricCipher</text>
+    <text x="52" y="558" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">encrypt / decrypt</text>
+    <text x="52" y="578" font-size="9" fill="#94A3B8">实例绑定固定密钥</text>
+  </g>
+  <g>
+    <rect x="227" y="514" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <text x="239" y="538" font-size="12" font-weight="700" fill="#0F172A">AsymmetricCipher</text>
+    <text x="239" y="558" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">每次传入密钥材料</text>
+    <text x="239" y="578" font-size="9" fill="#94A3B8">hex 编解码由实现约定</text>
+  </g>
+  <g>
+    <rect x="414" y="514" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <text x="426" y="538" font-size="12" font-weight="700" fill="#0F172A">Hasher</text>
+    <text x="426" y="558" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">digest / digest_hex</text>
+    <text x="426" y="578" font-size="9" fill="#94A3B8">digest_hex 有默认实现</text>
+  </g>
+  <g>
+    <rect x="601" y="514" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <text x="613" y="538" font-size="12" font-weight="700" fill="#0F172A">KeyDerivation</text>
+    <text x="613" y="558" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive(ikm, salt, len, info)</text>
+    <text x="613" y="578" font-size="9" fill="#94A3B8">IKM → 子密钥</text>
+  </g>
+  <g>
+    <rect x="788" y="514" width="172" height="92" rx="12" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <text x="800" y="538" font-size="12" font-weight="700" fill="#0F172A">PasswordBasedKdf</text>
+    <text x="800" y="558" font-size="9.5" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">derive_from_password()</text>
+    <text x="800" y="578" font-size="9" fill="#94A3B8">口令拉伸</text>
+  </g>
+
+  <line x1="500" y1="606" x2="500" y2="632" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#archArw)"/>
+
+  <!-- 实现 -->
+  <text x="40" y="648" font-size="11" fill="#94A3B8" letter-spacing="1">⑤ 实现 —— 每个实现按自己的 identifier() 注册；新增算法 = 新类型 + 一次 register()</text>
+  <rect x="40" y="658" width="920" height="86" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <g font-size="10.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="60" y="674" width="104" height="24" rx="12" fill="#EEF2FF"/><text x="112" y="690" fill="#4338CA" text-anchor="middle">aes-256-gcm</text>
+    <rect x="174" y="674" width="122" height="24" rx="12" fill="#EEF2FF"/><text x="235" y="690" fill="#4338CA" text-anchor="middle">sodium-xchacha20</text>
+    <rect x="306" y="674" width="128" height="24" rx="12" fill="#EEF2FF"/><text x="370" y="690" fill="#4338CA" text-anchor="middle">aes-256-cbc-hmac</text>
+    <rect x="444" y="674" width="72" height="24" rx="12" fill="#EEF2FF"/><text x="480" y="690" fill="#4338CA" text-anchor="middle">sm4-cbc</text>
+    <rect x="526" y="674" width="72" height="24" rx="12" fill="#EEF2FF"/><text x="562" y="690" fill="#4338CA" text-anchor="middle">zuc-128</text>
+    <rect x="608" y="674" width="52" height="24" rx="12" fill="#EEF2FF"/><text x="634" y="690" fill="#4338CA" text-anchor="middle">sm2</text>
+    <rect x="670" y="674" width="62" height="24" rx="12" fill="#EEF2FF"/><text x="701" y="690" fill="#4338CA" text-anchor="middle">sha256</text>
+    <rect x="742" y="674" width="46" height="24" rx="12" fill="#EEF2FF"/><text x="765" y="690" fill="#4338CA" text-anchor="middle">sm3</text>
+    <rect x="798" y="674" width="92" height="24" rx="12" fill="#EEF2FF"/><text x="844" y="690" fill="#4338CA" text-anchor="middle">hkdf-sha256</text>
+    <rect x="60" y="706" width="118" height="24" rx="12" fill="#EEF2FF"/><text x="119" y="722" fill="#4338CA" text-anchor="middle">pbkdf2-sha256</text>
+  </g>
+  <text x="192" y="722" font-size="10.5" fill="#475569">载荷：v1 | IV | Tag/MAC | 密文 · Rust 独立格式（不与 PHP 版字节互通）</text>
+  <text x="640" y="722" font-size="10.5" fill="#475569">纯 Rust：无 ext-sodium / ext-gmp 门槛 · SM2 为 hex 进出、C1C3C2</text>
+
+  <!-- 工厂与守卫 -->
+  <rect x="40" y="756" width="452" height="72" rx="14" fill="#EEF2FF" stroke="#C7D2FE"/>
+  <text x="60" y="782" font-size="12.5" font-weight="700" fill="#312E81">主密钥工厂</text>
+  <text x="60" y="802" font-size="10" fill="#3730A3" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">EncryptionManagerFactory::from_master_key(&amp;key32, "aes-256-gcm")</text>
+  <text x="60" y="818" font-size="10" fill="#4338CA">32 字节校验 · HMAC-SHA256(key=主密钥, msg=用途标签) 派生子密钥 · SM4/ZUC 截 16 字节</text>
+
+  <rect x="508" y="756" width="452" height="72" rx="14" fill="#EEF2FF" stroke="#C7D2FE"/>
+  <text x="528" y="782" font-size="12.5" font-weight="700" fill="#312E81">请求守卫 Guard（可选 feature）</text>
+  <text x="528" y="802" font-size="10" fill="#3730A3">Arc&lt;EncryptionManager&gt;，克隆零密钥拷贝；处理器参数直接声明 Guard</text>
+  <text x="528" y="818" font-size="10" fill="#4338CA">axum / actix-web / rocket / poem / salvo / warp / bee-rust / ecat · 忘注册 → 500</text>
+
+  <text x="40" y="844" font-size="10" fill="#94A3B8">与原版同构：Contract → Registry → Manager → Factory；本 crate 采用 Rust 独立格式（见 README「与原版的差异」）。</text>
+  <text x="960" y="844" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
+</svg>

@@ -1,0 +1,132 @@
+<!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 676" width="1000" height="676" role="img"
+     aria-labelledby="lifeTitle lifeDesc"
+     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <title id="lifeTitle">请求生命周期 — encryption-rust</title>
+  <desc id="lifeDesc">受保护数据的生命周期：配置 32 字节主密钥、派生各算法子密钥、注册实现、用随机 IV 加密、保存带版本的载荷，再到解析、校验与解密；另含轮换与失败模式。</desc>
+
+  <defs>
+    <marker id="lcArw" markerUnits="userSpaceOnUse" markerWidth="10" markerHeight="10" refX="7" refY="5" orient="auto">
+      <path d="M0,0 L10,5 L0,10 z" fill="#94A3B8"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="676" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
+
+  <text x="40" y="46" font-size="26" font-weight="700" fill="#0F172A">请求生命周期</text>
+  <text x="40" y="72" font-size="14" fill="#64748B">从主密钥到明文再返回 —— 引导、写入路径、读取路径、轮换与失败模式</text>
+
+  <text x="40" y="104" font-size="11" fill="#94A3B8" letter-spacing="1">写入路径 WRITE PATH</text>
+  <text x="40" y="308" font-size="11" fill="#94A3B8" letter-spacing="1">读取路径 READ PATH</text>
+
+  <!-- ═══ 写入路径 ═══ -->
+  <g>
+    <rect x="40" y="112" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <circle cx="66" cy="144" r="15" fill="#EEF2FF"/>
+    <text x="66" y="150" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">1</text>
+    <text x="90" y="149" font-size="14.5" font-weight="700" fill="#0F172A">配置</text>
+    <line x1="60" y1="168" x2="225" y2="168" stroke="#E2E8F0"/>
+    <text x="60" y="194" font-size="11" fill="#475569">32 字节随机主密钥，来自环境</text>
+    <text x="60" y="212" font-size="11" fill="#475569">变量 / KMS，绝不写进代码。</text>
+    <text x="60" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">load_master_key()</text>
+  </g>
+  <line x1="245" y1="185" x2="272" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+  <g>
+    <rect x="278" y="112" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <circle cx="304" cy="144" r="15" fill="#EEF2FF"/>
+    <text x="304" y="150" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">2</text>
+    <text x="328" y="149" font-size="14.5" font-weight="700" fill="#0F172A">派生</text>
+    <line x1="298" y1="168" x2="463" y2="168" stroke="#E2E8F0"/>
+    <text x="298" y="194" font-size="11" fill="#475569">每算法一份子密钥，</text>
+    <text x="298" y="212" font-size="11" fill="#475569">密钥永不跨算法复用。</text>
+    <text x="298" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">dgn:derive:aes-gcm</text>
+  </g>
+  <line x1="483" y1="185" x2="510" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+  <g>
+    <rect x="516" y="112" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <circle cx="542" cy="144" r="15" fill="#EEF2FF"/>
+    <text x="542" y="150" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">3</text>
+    <text x="566" y="149" font-size="14.5" font-weight="700" fill="#0F172A">注册</text>
+    <line x1="536" y1="168" x2="701" y2="168" stroke="#E2E8F0"/>
+    <text x="536" y="194" font-size="11" fill="#475569">实现按自己的 identifier()</text>
+    <text x="536" y="212" font-size="11" fill="#475569">注册，未知标识明确报错。</text>
+    <text x="536" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">registry.register(…)</text>
+  </g>
+  <line x1="721" y1="185" x2="748" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+  <g>
+    <rect x="754" y="112" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+    <circle cx="780" cy="144" r="15" fill="#EEF2FF"/>
+    <text x="780" y="150" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">4</text>
+    <text x="804" y="149" font-size="14.5" font-weight="700" fill="#0F172A">加密</text>
+    <line x1="774" y1="168" x2="939" y2="168" stroke="#E2E8F0"/>
+    <text x="774" y="194" font-size="11" fill="#475569">每次调用新 IV / nonce，</text>
+    <text x="774" y="212" font-size="11" fill="#475569">AEAD 或 encrypt-then-MAC。</text>
+    <text x="774" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.encrypt(&amp;data)</text>
+  </g>
+
+  <path d="M856 258 V278 H142 V310" fill="none" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+
+  <!-- ═══ 读取路径 ═══ -->
+  <g>
+    <rect x="40" y="316" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <circle cx="66" cy="348" r="15" fill="#EEF2FF"/>
+    <text x="66" y="354" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">5</text>
+    <text x="90" y="353" font-size="14.5" font-weight="700" fill="#0F172A">落盘</text>
+    <line x1="60" y1="372" x2="225" y2="372" stroke="#E2E8F0"/>
+    <text x="60" y="398" font-size="11" fill="#475569">二进制入 BLOB 列，</text>
+    <text x="60" y="416" font-size="11" fill="#475569">文本存储先转 base64。</text>
+    <text x="60" y="440" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v1 | IV | Tag/MAC | 密文</text>
+  </g>
+  <line x1="245" y1="389" x2="272" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+  <g>
+    <rect x="278" y="316" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <circle cx="304" cy="348" r="15" fill="#EEF2FF"/>
+    <text x="304" y="354" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">6</text>
+    <text x="328" y="353" font-size="14.5" font-weight="700" fill="#0F172A">解析</text>
+    <line x1="298" y1="372" x2="463" y2="372" stroke="#E2E8F0"/>
+    <text x="298" y="398" font-size="11" fill="#475569">记录旁的标识决定用哪一个</text>
+    <text x="298" y="416" font-size="11" fill="#475569">实现 —— 换默认算法后，</text>
+    <text x="298" y="434" font-size="11" fill="#475569">旧数据照常解密。</text>
+  </g>
+  <line x1="483" y1="389" x2="510" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+  <g>
+    <rect x="516" y="316" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <circle cx="542" cy="348" r="15" fill="#EEF2FF"/>
+    <text x="542" y="354" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">7</text>
+    <text x="566" y="353" font-size="14.5" font-weight="700" fill="#0F172A">校验</text>
+    <line x1="536" y1="372" x2="701" y2="372" stroke="#E2E8F0"/>
+    <text x="536" y="398" font-size="11" fill="#475569">先查前缀与长度，再以常量</text>
+    <text x="536" y="416" font-size="11" fill="#475569">时间比对 Tag / MAC —— 任何</text>
+    <text x="536" y="434" font-size="11" fill="#475569">字节被改都在这里露馅。</text>
+    <text x="536" y="452" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">verify_slice / ct_eq</text>
+  </g>
+  <line x1="721" y1="389" x2="748" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
+  <g>
+    <rect x="754" y="316" width="205" height="146" rx="14" fill="#FFFFFF" stroke="#A5B4FC"/>
+    <circle cx="780" cy="348" r="15" fill="#EEF2FF"/>
+    <text x="780" y="354" font-size="14" font-weight="700" fill="#4338CA" text-anchor="middle">8</text>
+    <text x="804" y="353" font-size="14.5" font-weight="700" fill="#0F172A">解密</text>
+    <line x1="774" y1="372" x2="939" y2="372" stroke="#E2E8F0"/>
+    <text x="774" y="398" font-size="11" fill="#475569">明文返回调用方；失败时</text>
+    <text x="774" y="416" font-size="11" fill="#475569">不区分原因、不向客户端</text>
+    <text x="774" y="434" font-size="11" fill="#475569">泄露任何细节。</text>
+  </g>
+
+  <!-- ═══ 维护与失败模式 ═══ -->
+  <text x="40" y="492" font-size="11" fill="#94A3B8" letter-spacing="1">维护与失败模式 MAINTENANCE &amp; FAILURE MODES</text>
+  <rect x="40" y="504" width="440" height="112" rx="14" fill="#FFF7ED" stroke="#FDBA74"/>
+  <text x="60" y="532" font-size="13.5" font-weight="700" fill="#9A3412">轮换与迁移</text>
+  <circle cx="66" cy="554" r="2.5" fill="#F59E0B"/><text x="78" y="558" font-size="11" fill="#7C2D12">标识（含 v1 前缀）随每条记录保存</text>
+  <circle cx="66" cy="573" r="2.5" fill="#F59E0B"/><text x="78" y="577" font-size="11" fill="#7C2D12">用旧密钥解密、用新密钥重新加密</text>
+  <circle cx="66" cy="592" r="2.5" fill="#F59E0B"/><text x="78" y="596" font-size="11" fill="#7C2D12">set_default_identifier() 切换默认，调用点不动</text>
+
+  <rect x="520" y="504" width="440" height="112" rx="14" fill="#FEF2F2" stroke="#FCA5A5"/>
+  <text x="540" y="532" font-size="13.5" font-weight="700" fill="#991B1B">失败即 error::Error（分变体，不静默）</text>
+  <circle cx="546" cy="554" r="2.5" fill="#EF4444"/><text x="558" y="558" font-size="11" fill="#7F1D1D">前缀错误（InvalidPrefix）、密文过短（TooShort）</text>
+  <circle cx="546" cy="573" r="2.5" fill="#EF4444"/><text x="558" y="577" font-size="11" fill="#7F1D1D">Tag / MAC 不匹配 —— 篡改或密钥不对</text>
+  <circle cx="546" cy="592" r="2.5" fill="#EF4444"/><text x="558" y="596" font-size="11" fill="#7F1D1D">未知标识、密钥长度非法、迭代数为零……</text>
+
+  <text x="40" y="646" font-size="11" fill="#94A3B8">引导每进程一次（工厂一次派生并注册全部对称算法）；encrypt / decrypt 是每请求热路径。</text>
+  <text x="40" y="664" font-size="10" fill="#94A3B8">Rust 独立格式：结构与 PHP 版同形（v1 | IV | Tag/MAC | 密文），但不承诺字节级互通。</text>
+  <text x="960" y="664" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
+</svg>

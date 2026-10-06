@@ -1,0 +1,125 @@
+<!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 856" width="1000" height="856" role="img"
+     aria-labelledby="fdTitle fdDesc"
+     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+  <title id="fdTitle">Functional design — encryption-rust</title>
+  <desc id="fdDesc">Capability map: symmetric encryption, asymmetric encryption (SM2), hashing (SHA-256 / SM3), key derivation (HKDF), password-based derivation (PBKDF2), and Chinese national standards (SM4 / ZUC), plus design principles, secure defaults, and the extension path.</desc>
+
+  <rect x="0" y="0" width="1000" height="856" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
+
+  <text x="40" y="46" font-size="26" font-weight="700" fill="#0F172A">Functional design</text>
+  <text x="40" y="72" font-size="14" fill="#64748B">Six families, one shape — contract (trait) · registry · facade · built-in identifiers · design principles · secure defaults · extension path</text>
+
+  <!-- ═══ Row 1 ═══ -->
+  <!-- Symmetric encryption -->
+  <rect x="40" y="96" width="298" height="164" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="58" y="124" font-size="13.5" font-weight="700" fill="#0F172A">Symmetric encryption</text>
+  <text x="58" y="142" font-size="9.5" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Registry&lt;dyn SymmetricCipher&gt; · EncryptionManager</text>
+  <g font-size="9.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="58" y="154" width="96" height="20" rx="10" fill="#EEF2FF"/><text x="106" y="168" fill="#4338CA" text-anchor="middle">aes-256-gcm</text>
+    <rect x="160" y="154" width="114" height="20" rx="10" fill="#EEF2FF"/><text x="217" y="168" fill="#4338CA" text-anchor="middle">sodium-xchacha20</text>
+    <rect x="58" y="180" width="120" height="20" rx="10" fill="#EEF2FF"/><text x="118" y="194" fill="#4338CA" text-anchor="middle">aes-256-cbc-hmac</text>
+    <rect x="184" y="180" width="64" height="20" rx="10" fill="#EEF2FF"/><text x="216" y="194" fill="#4338CA" text-anchor="middle">sm4-cbc</text>
+    <rect x="254" y="180" width="64" height="20" rx="10" fill="#EEF2FF"/><text x="286" y="194" fill="#4338CA" text-anchor="middle">zuc-128</text>
+  </g>
+  <text x="58" y="222" font-size="10.5" fill="#475569">Fixed key per instance, new IV / nonce per call;</text>
+  <text x="58" y="238" font-size="10.5" fill="#475569">binary payloads, AEAD or encrypt-then-MAC.</text>
+  <text x="58" y="252" font-size="10" fill="#94A3B8">The factory registers all five at once.</text>
+
+  <!-- Asymmetric encryption -->
+  <rect x="351" y="96" width="298" height="164" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="369" y="124" font-size="13.5" font-weight="700" fill="#0F172A">Asymmetric encryption</text>
+  <text x="369" y="142" font-size="9.5" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Registry&lt;dyn AsymmetricCipher&gt; · AsymmetricCryptoManager</text>
+  <g font-size="9.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="369" y="154" width="46" height="20" rx="10" fill="#EEF2FF"/><text x="392" y="168" fill="#4338CA" text-anchor="middle">sm2</text>
+  </g>
+  <text x="369" y="196" font-size="10.5" fill="#475569">Per call: public key encrypts, private decrypts.</text>
+  <text x="369" y="212" font-size="10.5" fill="#475569">Keys and ciphertext are hex; C1C3C2 layout.</text>
+  <text x="369" y="228" font-size="10.5" fill="#475569">No ext-gmp needed; keypair generation built in.</text>
+  <text x="369" y="248" font-size="10" fill="#94A3B8">Sm2Service static facade: keygen, encrypt, decrypt.</text>
+
+  <!-- Hashing -->
+  <rect x="662" y="96" width="298" height="164" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="680" y="124" font-size="13.5" font-weight="700" fill="#0F172A">Hashing</text>
+  <text x="680" y="142" font-size="9.5" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Registry&lt;dyn Hasher&gt; · HashingManager</text>
+  <g font-size="9.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="680" y="154" width="58" height="20" rx="10" fill="#EEF2FF"/><text x="709" y="168" fill="#4338CA" text-anchor="middle">sha256</text>
+    <rect x="744" y="154" width="42" height="20" rx="10" fill="#EEF2FF"/><text x="765" y="168" fill="#4338CA" text-anchor="middle">sm3</text>
+  </g>
+  <text x="680" y="196" font-size="10.5" fill="#475569">One-way digests, no key; both output 32 bytes.</text>
+  <text x="680" y="212" font-size="10.5" fill="#475569">digest() returns bytes, digest_hex() returns text</text>
+  <text x="680" y="228" font-size="10.5" fill="#475569">(default impl — new algorithms plug in easily).</text>
+  <text x="680" y="248" font-size="10" fill="#94A3B8">For signing, integrity checks, MAC key derivation.</text>
+
+  <!-- ═══ Row 2 ═══ -->
+  <!-- Key derivation -->
+  <rect x="40" y="274" width="298" height="164" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="58" y="302" font-size="13.5" font-weight="700" fill="#0F172A">Key derivation (IKM)</text>
+  <text x="58" y="320" font-size="9.5" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Registry&lt;dyn KeyDerivation&gt; · KeyDerivationManager</text>
+  <g font-size="9.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="58" y="332" width="92" height="20" rx="10" fill="#EEF2FF"/><text x="104" y="346" fill="#4338CA" text-anchor="middle">hkdf-sha256</text>
+  </g>
+  <text x="58" y="374" font-size="10.5" fill="#475569">RFC 5869: expands high-entropy material into</text>
+  <text x="58" y="390" font-size="10.5" fill="#475569">derive(ikm, salt, length, info) → purpose subkeys.</text>
+  <text x="58" y="406" font-size="10.5" fill="#475569">Output capped at 255 × 32 bytes; overflow errors.</text>
+  <text x="58" y="426" font-size="10" fill="#94A3B8">Not for password stretching — that's PBKDF2's job.</text>
+
+  <!-- Password-based derivation -->
+  <rect x="351" y="274" width="298" height="164" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="369" y="302" font-size="13.5" font-weight="700" fill="#0F172A">Password-based derivation</text>
+  <text x="369" y="320" font-size="9.5" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Registry&lt;dyn PasswordBasedKdf&gt; · PasswordBasedKdfManager</text>
+  <g font-size="9.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="369" y="332" width="102" height="20" rx="10" fill="#EEF2FF"/><text x="420" y="346" fill="#4338CA" text-anchor="middle">pbkdf2-sha256</text>
+  </g>
+  <text x="369" y="374" font-size="10.5" fill="#475569">Random salt + fixed iterations (default 310,000),</text>
+  <text x="369" y="390" font-size="10.5" fill="#475569">derive_from_password(password, salt, length).</text>
+  <text x="369" y="406" font-size="10.5" fill="#475569">Iterations and output length must be positive.</text>
+  <text x="369" y="426" font-size="10" fill="#94A3B8">Use Argon2 / bcrypt for storing user passwords.</text>
+
+  <!-- Chinese national standards -->
+  <rect x="662" y="274" width="298" height="164" rx="14" fill="#FFFFFF" stroke="#C7D2FE"/>
+  <text x="680" y="302" font-size="13.5" font-weight="700" fill="#0F172A">Chinese national standards</text>
+  <text x="680" y="320" font-size="9.5" fill="#94A3B8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">guomi module · the same contracts and registry</text>
+  <g font-size="9.5" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">
+    <rect x="680" y="332" width="46" height="20" rx="10" fill="#EEF2FF"/><text x="703" y="346" fill="#4338CA" text-anchor="middle">sm2</text>
+    <rect x="732" y="332" width="42" height="20" rx="10" fill="#EEF2FF"/><text x="753" y="346" fill="#4338CA" text-anchor="middle">sm3</text>
+    <rect x="780" y="332" width="64" height="20" rx="10" fill="#EEF2FF"/><text x="812" y="346" fill="#4338CA" text-anchor="middle">sm4-cbc</text>
+    <rect x="850" y="332" width="64" height="20" rx="10" fill="#EEF2FF"/><text x="882" y="346" fill="#4338CA" text-anchor="middle">zuc-128</text>
+  </g>
+  <text x="680" y="374" font-size="10.5" fill="#475569">Not a separate API: register it, then call from the</text>
+  <text x="680" y="390" font-size="10.5" fill="#475569">same Manager as AES / SHA-256 (ZUC GB/T-verified).</text>
+  <text x="680" y="406" font-size="10.5" fill="#475569">SM1 / SM7 / SM9 → explicit Unsupported errors.</text>
+  <text x="680" y="426" font-size="10" fill="#94A3B8">Pure Rust — no system extensions required.</text>
+
+  <!-- ═══ Bottom three blocks ═══ -->
+  <rect x="40" y="452" width="298" height="188" rx="14" fill="#F5F3FF" stroke="#C4B5FD"/>
+  <text x="58" y="480" font-size="13.5" font-weight="700" fill="#5B21B6">Design principles</text>
+  <text x="58" y="506" font-size="11" fill="#4C1D95">· One contract (trait) per capability</text>
+  <text x="58" y="528" font-size="11" fill="#4C1D95">· Registry resolves by identifier</text>
+  <text x="58" y="550" font-size="11" fill="#4C1D95">· Payloads carry a format version (v1)</text>
+  <text x="58" y="572" font-size="11" fill="#4C1D95">· Zero framework coupling: opt-in features only</text>
+  <text x="58" y="594" font-size="11" fill="#4C1D95">· Same identifiers as the original, no switch cost</text>
+  <text x="58" y="622" font-size="10" fill="#7C3AED">Rust's own format: same shape, no byte interop.</text>
+
+  <rect x="351" y="452" width="298" height="188" rx="14" fill="#F0FDF4" stroke="#86EFAC"/>
+  <text x="369" y="480" font-size="13.5" font-weight="700" fill="#166534">Secure defaults</text>
+  <text x="369" y="506" font-size="11" fill="#14532D">· Random IV / nonce on every call</text>
+  <text x="369" y="528" font-size="11" fill="#14532D">· AEAD or encrypt-then-MAC</text>
+  <text x="369" y="550" font-size="11" fill="#14532D">· Constant-time comparison (verify_slice / ct_eq)</text>
+  <text x="369" y="572" font-size="11" fill="#14532D">· Strict 32-byte master key check at construction</text>
+  <text x="369" y="594" font-size="11" fill="#14532D">· Key material zeroized on Drop, Debug redacted</text>
+  <text x="369" y="622" font-size="10" fill="#15803D">No cause disclosed on failure — no attacker oracle.</text>
+
+  <rect x="662" y="452" width="298" height="188" rx="14" fill="#FFF7ED" stroke="#FDBA74"/>
+  <text x="680" y="480" font-size="13.5" font-weight="700" fill="#9A3412">Extension path — adding an algorithm</text>
+  <text x="680" y="506" font-size="11" fill="#7C2D12">1. Implement the family's contract trait</text>
+  <text x="680" y="528" font-size="11" fill="#7C2D12">2. Return a unique identifier()</text>
+  <text x="680" y="550" font-size="11" fill="#7C2D12">3. Register it in the matching Registry</text>
+  <text x="680" y="572" font-size="11" fill="#7C2D12">4. Call it through any facade</text>
+  <text x="680" y="600" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.registry_mut()</text>
+  <text x="680" y="616" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">    .register(Box::new(MyCipher::new()));</text>
+  <text x="680" y="632" font-size="10" fill="#C2410C">New algorithm = a new type + one register() call.</text>
+
+  <text x="40" y="836" font-size="10" fill="#94A3B8">Every facade offers two method sets — default algorithm and explicit *_with(identifier, …); identifiers match the PHP version.</text>
+  <text x="960" y="836" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
+</svg>
