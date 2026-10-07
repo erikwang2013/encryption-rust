@@ -4,6 +4,16 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.1.1] - 2026-10-07
+
+### Fixed
+- CI audit job 补 `checks: write` 权限（rustsec/audit-check 落检查结果所需；首跑报 `Resource not accessible by integration`）
+
+### Changed
+- dependabot 策略：cargo 依赖忽略 semver-major（密码学依赖按「cipher 0.4 / digest 0.10」代际刻意钉版，防止静默换栈），`dtolnay/rust-toolchain` 的 MSRV 引用不再被当作版本升级；首批 6 个代际大版本 PR 已附理由关闭
+- `RUSTSEC-2026-0258`（h2 0.3.27，经 actix-web / rocket 传递引入，低危、0.3 线无补丁）加入 audit 白名单，附退出条件
+- Cargo.lock 按 MSRV（1.88）感知重解析：`windows-sys` / `socket2` 等相关传递依赖回退到兼容 1.88 的最高版本
+
 ## [1.1.0] - 2026-10-07
 
 ### Added

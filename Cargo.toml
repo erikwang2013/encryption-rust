@@ -2,7 +2,7 @@
 
 [package]
 name = "encryption-rust"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 rust-version = "1.88"
 description = "可插拔密码学组件库的 Rust 实现：在统一契约下提供对称加密、非对称加密、哈希与密钥派生（HKDF / PBKDF2），包含 AES/Sodium 与国密 SM2/SM3/SM4/ZUC 等实现"
