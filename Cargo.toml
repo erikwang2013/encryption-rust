@@ -61,7 +61,7 @@ rand_core = { version = "0.6", features = ["getrandom"] }   # 随机 IV / nonce�
 
 # zeroize：让底层块密码的轮密钥 / 内部状态也在释放时清零（与 Key<N> 的 Drop
 # 清零闭环；兄弟项目 encryptable-rust 同款做法）。
-aes-gcm = { version = "0.10", features = ["zeroize"] }   # aes-256-gcm（认证加密，工厂默认算法）
+aes-gcm = { version = "0.11", features = ["zeroize"] }   # aes-256-gcm（认证加密，工厂默认算法）
 aes = { version = "0.8", features = ["zeroize"] }        # aes-256-cbc-hmac 的底层块密码
 cbc = { version = "0.1", features = ["alloc", "block-padding"] }  # CBC 模式 + PKCS#7
 hmac = "0.12"                    # encrypt-then-MAC 与子密钥派生（HMAC-SHA256）
