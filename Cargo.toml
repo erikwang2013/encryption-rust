@@ -65,7 +65,7 @@ aes-gcm = { version = "0.10", features = ["zeroize"] }   # aes-256-gcm（认证�
 aes = { version = "0.8", features = ["zeroize"] }        # aes-256-cbc-hmac 的底层块密码
 cbc = { version = "0.1", features = ["alloc", "block-padding"] }  # CBC 模式 + PKCS#7
 hmac = "0.12"                    # encrypt-then-MAC 与子密钥派生（HMAC-SHA256）
-sha2 = "0.10"                    # SHA-256（HMAC / HKDF / PBKDF2 的底层）
+sha2 = "0.11"                    # SHA-256（HMAC / HKDF / PBKDF2 的底层）
 chacha20poly1305 = "0.10"        # sodium-xchacha20（纯 Rust 实现，恒可用）
 # chacha20poly1305 没有暴露 zeroize feature，其内部的 chacha20 / poly1305 通过
 # 直接依赖翻转 feature（Cargo feature 取并集），让两器的状态同样清零。
