@@ -38,12 +38,18 @@ jobs:
   audit:
     runs-on: ubuntu-latest
     if: github.event_name != 'pull_request'
-    # audit-check 发现漏洞时会建 issue，需要 issues: write 权限
+    # audit-check 需要 checks: write 落检查结果、issues: write 在发现漏洞时建 issue
     permissions:
       contents: read
+      checks: write
       issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: rustsec/audit-check@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
+          # RUSTSEC-2026-0258（h2 0.3.27 无界空 DATA 帧，低危）：由 actix-http 3.18
+          # 与 rocket_http 0.5 传递引入（均为可选框架依赖）；h2 0.3 线已停止维护、
+          # 该公告只修 >=0.4.16，锁内另一份 h2 0.4.19 已是修补版。
+          # 待 actix-web / rocket 迁到 hyper 1.x 后删除本条。
+          ignore: RUSTSEC-2026-0258
