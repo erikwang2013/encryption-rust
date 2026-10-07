@@ -69,7 +69,7 @@ sha2 = "0.10"                    # SHA-256（HMAC / HKDF / PBKDF2 的底层）
 chacha20poly1305 = "0.10"        # sodium-xchacha20（纯 Rust 实现，恒可用）
 # chacha20poly1305 没有暴露 zeroize feature，其内部的 chacha20 / poly1305 通过
 # 直接依赖翻转 feature（Cargo feature 取并集），让两器的状态同样清零。
-chacha20 = { version = "0.9", features = ["zeroize"] }
+chacha20 = { version = "0.10", features = ["zeroize"] }
 poly1305 = { version = "0.8", features = ["zeroize"] }
 hkdf = "0.12"                    # hkdf-sha256（RFC 5869）
 pbkdf2 = "0.12"                  # pbkdf2-sha256
