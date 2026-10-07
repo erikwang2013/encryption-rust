@@ -1,0 +1,49 @@
+# encryption-rust CI：stable 全量测试、MSRV 守护、依赖安全审计
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # 每周一 05:17 UTC 触发（只影响 audit job）
+    - cron: "17 5 * * 1"
+
+jobs:
+  # stable 工具链：格式 → clippy（全 feature，警告即错误）→ 测试（全 feature）
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          # 该 action 默认只装 minimal profile，fmt/clippy 需显式声明
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo fmt --check
+      - run: cargo clippy --all-features --all-targets -- -D warnings
+      - run: cargo test --all-features
+
+  # 守 Cargo.toml 声明的 rust-version = 1.88；
+  # 不带 --all-features：8 个框架依赖自身的 MSRV 可能高于 1.88
+  msrv:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.88.0
+      - run: cargo check
+
+  # RustSec 安全审计：仅 push 与每周 cron 运行，PR 上跳过
+  audit:
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    # audit-check 发现漏洞时会建 issue，需要 issues: write 权限
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}

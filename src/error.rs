@@ -47,6 +47,8 @@ pub enum Error {
         name: &'static str,
         hint: &'static str,
     },
+    /// 必需配置缺失（如环境变量未设置）。
+    MissingConfig { key: &'static str },
 }
 
 impl fmt::Display for Error {
@@ -83,6 +85,9 @@ impl fmt::Display for Error {
             Error::InvalidHex => write!(f, "Invalid hex string."),
             Error::UnsupportedNationalAlgorithm { name, hint } => {
                 write!(f, "{name} is not provided by this library: {hint}")
+            }
+            Error::MissingConfig { key } => {
+                write!(f, "Required configuration \"{key}\" was not found.")
             }
         }
     }

@@ -23,10 +23,11 @@ fn every_symmetric_cipher_roundtrips_standalone() {
 
     let ciphers: [&dyn SymmetricCipher; 5] = [&gcm, &cbc, &xchacha, &sm4, &zuc];
     for cipher in ciphers {
+        let identifier = cipher.identifier();
         for payload in PAYLOADS {
-            let blob = cipher.encrypt(payload).expect(cipher.identifier());
-            let recovered = cipher.decrypt(&blob).expect(cipher.identifier());
-            assert_eq!(recovered, payload, "{}", cipher.identifier());
+            let blob = cipher.encrypt(payload).expect(identifier);
+            let recovered = cipher.decrypt(&blob).expect(identifier);
+            assert_eq!(recovered, payload, "{identifier}");
         }
     }
 }

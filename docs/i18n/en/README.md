@@ -2,6 +2,11 @@
 
 # encryption-rust
 
+[![crates.io](https://img.shields.io/crates/v/encryption-rust.svg)](https://crates.io/crates/encryption-rust)
+[![docs.rs](https://img.shields.io/docsrs/encryption-rust)](https://docs.rs/encryption-rust)
+[![CI](https://github.com/erikwang2013/encryption-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/erikwang2013/encryption-rust/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](../../../LICENSE)
+
 **Languages:** [简体中文](../../../README.md) | **English**
 
 <p align="center">
@@ -386,6 +391,15 @@ match manager.decrypt(&stored) {
 
 [`Guard`](../../../src/guard.rs) is a framework-agnostic request guard: internally it is an `Arc<EncryptionManager>`, so cloning it just bumps a reference count and **copies no key material**. One opt-in feature per framework; a default build pulls in none of them.
 
+The guard can also be built straight from environment variables: `ENCRYPTION_MASTER_KEY` accepts explicit `hex:` / `base64:` prefixes — without a prefix, a 64-character hex string is treated as hex and anything else as base64 (the decoded value must be exactly 32 bytes). `ENCRYPTION_ALGORITHM` is optional and defaults to `aes-256-gcm`.
+
+```rust
+use encryption::guard::Guard;
+
+let guard = Guard::from_env()?;   // reads ENCRYPTION_MASTER_KEY / ENCRYPTION_ALGORITHM
+// Tests or custom config sources: Guard::from_env_with(|key| my_config.get(key).cloned())
+```
+
 | feature | Integration |
 |---------|---------|
 | (native Rust) | `Guard::from_master_key(&key, "aes-256-gcm")`; put it into whatever state container you like |
@@ -461,7 +475,9 @@ encryption-rust/
 ├── tests/
 │   ├── crypto_roundtrip.rs    end-to-end round trips for every algorithm and the five facades
 │   ├── invariants.rs          cross-algorithm non-interoperability, tampering always fails, IV freshness, plugin extension
-│   └── sm2.rs                 SM2 key pairs, the facade, and error paths
+│   ├── sm2.rs                 SM2 key pairs, the facade, and error paths
+│   └── known_answer.rs        cross-implementation KATs: reference ciphertexts from OpenSSL / libsodium, pinned byte for byte
+├── benches/crypto_bench.rs    criterion benchmarks (wrapper vs raw aes-gcm overhead)
 ├── examples/quickstart.rs     zero-config quick start (encrypt → store → read → decrypt → tamper detection)
 ├── docs/
 │   ├── pet.svg                the project pet artwork (inlined by src/pet.rs with include_str!)
@@ -472,6 +488,8 @@ encryption-rust/
 │   └── i18n/en/               English README and the three English design diagrams
 ├── Cargo.toml
 ├── SECURITY.md
+├── CHANGELOG.md
+├── .github/                   CI (fmt / clippy / test / MSRV / audit) and dependabot
 └── LICENSE
 ```
 
@@ -509,9 +527,10 @@ Yes. This English README uses the three English design diagrams under `docs/i18n
 cargo test                       # core library (pulls in no framework by default)
 cargo test --all-features        # together with the tests for the 8 framework adapters
 cargo run --example quickstart
+cargo bench --bench crypto_bench # criterion: wrapper vs raw-crate overhead
 ```
 
-Coverage: per-algorithm round trips and tamper-always-fails, cross-algorithm non-interoperability, factory subkey independence and validation, registry / facade behavior, SM2 key paths, the pet constants, and guard extraction for every framework (including the "forgot to wire it → 500" path).
+Coverage: per-algorithm round trips and tamper-always-fails, cross-algorithm non-interoperability, factory subkey independence and validation, registry / facade behavior, SM2 key paths, the pet constants, guard extraction for every framework (including the "forgot to wire it → 500" path), and the [cross-implementation KATs](../../../tests/known_answer.rs) (reference ciphertexts produced by OpenSSL / libsodium).
 
 ## Reference original project
 
@@ -520,3 +539,5 @@ Coverage: per-algorithm round trips and tamper-always-fails, cross-algorithm non
 ## License
 
 [MIT](../../../LICENSE) © 2026 erik — [https://erik.xyz](https://erik.xyz)
+
+See [CHANGELOG.md](../../../CHANGELOG.md) for the release history.

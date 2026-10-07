@@ -2,6 +2,11 @@
 
 # encryption-rust
 
+[![crates.io](https://img.shields.io/crates/v/encryption-rust.svg)](https://crates.io/crates/encryption-rust)
+[![docs.rs](https://img.shields.io/docsrs/encryption-rust)](https://docs.rs/encryption-rust)
+[![CI](https://github.com/erikwang2013/encryption-rust/actions/workflows/ci.yml/badge.svg)](https://github.com/erikwang2013/encryption-rust/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+
 **语言 / Languages:** **简体中文** | [English](./docs/i18n/en/README.md)
 
 <p align="center">
@@ -386,6 +391,15 @@ match manager.decrypt(&stored) {
 
 [`Guard`](./src/guard.rs) 是框架无关的请求守卫：内部是一把 `Arc<EncryptionManager>`，克隆它就是引用计数递增，**不含任何密钥拷贝**。每个框架一个 opt-in feature，默认构建一个都不拉。
 
+守卫可以直接从环境变量构造：`ENCRYPTION_MASTER_KEY` 支持 `hex:` / `base64:` 前缀，无前缀时 64 位十六进制串自动按 hex、其余按 base64（解码后必须恰为 32 字节）；`ENCRYPTION_ALGORITHM` 可选，默认 `aes-256-gcm`。
+
+```rust
+use encryption::guard::Guard;
+
+let guard = Guard::from_env()?;   // 读 ENCRYPTION_MASTER_KEY / ENCRYPTION_ALGORITHM
+// 测试或自定义配置源：Guard::from_env_with(|key| my_config.get(key).cloned())
+```
+
 | feature | 集成方式 |
 |---------|---------|
 | （原生 Rust） | `Guard::from_master_key(&key, "aes-256-gcm")`，自行放进任意状态容器 |
@@ -461,7 +475,9 @@ encryption-rust/
 ├── tests/
 │   ├── crypto_roundtrip.rs    各算法与五个门面的端到端往返
 │   ├── invariants.rs          跨算法不互通、篡改必败、IV 新鲜性、插件扩展
-│   └── sm2.rs                 SM2 密钥对、门面与错误路径
+│   ├── sm2.rs                 SM2 密钥对、门面与错误路径
+│   └── known_answer.rs        跨实现 KAT：OpenSSL / libsodium 生成的参考密文逐字节钉死
+├── benches/crypto_bench.rs    criterion 基准（本库封装 vs 裸 aes-gcm 的开销）
 ├── examples/quickstart.rs     零配置快速开始（加密 → 存 → 读 → 解密 → 篡改检测）
 ├── docs/
 │   ├── pet.svg                项目宠物形象（src/pet.rs 用 include_str! 内联）
@@ -472,6 +488,8 @@ encryption-rust/
 │   └── i18n/en/               英文版 README 与三张英文设计图
 ├── Cargo.toml
 ├── SECURITY.md
+├── CHANGELOG.md
+├── .github/                   CI（fmt / clippy / test / MSRV / audit）与 dependabot
 └── LICENSE
 ```
 
@@ -509,9 +527,10 @@ C1C3C2（现行标准默认布局），C1 为非压缩点 `04‖X‖Y`。与原�
 cargo test                       # 核心库（默认不拉任何框架）
 cargo test --all-features        # 连同 8 个框架适配的测试一起
 cargo run --example quickstart
+cargo bench --bench crypto_bench # criterion：本库封装 vs 裸 crate 的开销
 ```
 
-覆盖：各算法往返与篡改必败、跨算法不互通、工厂子密钥独立性与校验、注册表 / 门面行为、SM2 密钥路径、宠物常量，以及各框架的守卫提取（含「忘注册 → 500」路径）。
+覆盖：各算法往返与篡改必败、跨算法不互通、工厂子密钥独立性与校验、注册表 / 门面行为、SM2 密钥路径、宠物常量、各框架的守卫提取（含「忘注册 → 500」路径），以及[跨实现 KAT](./tests/known_answer.rs)（OpenSSL / libsodium 生成的参考密文）。
 
 ## 参考原项目
 
@@ -520,3 +539,5 @@ cargo run --example quickstart
 ## 许可证
 
 [MIT](./LICENSE) © 2026 erik — [https://erik.xyz](https://erik.xyz)
+
+变更记录见 [CHANGELOG.md](./CHANGELOG.md)。
