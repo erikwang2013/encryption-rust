@@ -5,7 +5,18 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # 密码学生态按「cipher 0.4 / digest 0.10」代际刻意钉版本（见 Cargo.toml 注释）：
+      # 大版本跳动会静默换栈（如 chacha20 0.10 会让 zeroize 特性翻错对象、
+      # aes-gcm 0.11 / sha2 0.11 会引入第二套 cipher/digest 栈），一律人工评估后再改。
+      # minor / patch 照常提 PR。
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    ignore:
+      # dtolnay/rust-toolchain 的引用是**工具链版本**（@1.88.0 是刻意固定的 MSRV
+      # 守护目标），不是 action 的发布号 —— 不能当版本升级处理。
+      - dependency-name: dtolnay/rust-toolchain
