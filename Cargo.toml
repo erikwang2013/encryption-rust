@@ -66,6 +66,14 @@ aes = { version = "0.8", features = ["zeroize"] }        # aes-256-cbc-hmac 的�
 cbc = { version = "0.1", features = ["alloc", "block-padding"] }  # CBC 模式 + PKCS#7
 hmac = "0.12"                    # encrypt-then-MAC 与子密钥派生（HMAC-SHA256）
 sha2 = "0.10"                    # SHA-256（HMAC / HKDF / PBKDF2 的底层）
+# 哈希能力扩展（同 digest 0.10 代际；blake3 为独立实现，不走 digest trait）。
+# blake2 0.10.6 没有 zeroize feature，故未开启（其内部状态清零依赖 digest 的
+# CoreWrapper，不由本库控制）。
+sha3 = "0.10.9"                  # SHA3-256 / SHA3-512（FIPS 202）
+blake2 = "0.10.6"                # BLAKE2b-512 / BLAKE2s-256（RFC 7693）
+blake3 = "1.8"                   # BLAKE3（默认 32 字节输出）
+streebog = "0.10.2"              # Streebog-256 / Streebog-512（GOST R 34.11-2012）
+belt-hash = "0.1.1"              # Belt-Hash（STB 34.101.31，256-bit）
 chacha20poly1305 = "0.10"        # sodium-xchacha20（纯 Rust 实现，恒可用）
 # chacha20poly1305 没有暴露 zeroize feature，其内部的 chacha20 / poly1305 通过
 # 直接依赖翻转 feature（Cargo feature 取并集），让两器的状态同样清零。
