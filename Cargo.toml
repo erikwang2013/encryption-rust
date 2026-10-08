@@ -2,10 +2,10 @@
 
 [package]
 name = "encryption-rust"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2024"
 rust-version = "1.88"
-description = "可插拔密码学组件库的 Rust 实现：在统一契约下提供对称加密、非对称加密、哈希与密钥派生（HKDF / PBKDF2），包含 AES/Sodium 与国密 SM2/SM3/SM4/ZUC 等实现"
+description = "可插拔密码学组件库的 Rust 实现：在统一契约下提供对称加密、非对称加密、哈希、密钥派生（HKDF / PBKDF2 / Argon2 / scrypt）、签名（SM2 / ECDSA / Ed25519）、密钥协商（ECDH / X25519）与后量子密钥封装（ML-KEM），包含 AES/Sodium 与国密 SM2/SM3/SM4/ZUC 等实现"
 license = "MIT"
 repository = "https://github.com/erikwang2013/encryption-rust"
 authors = ["erik <erik@erik.xyz>"]
@@ -56,6 +56,8 @@ codegen-units = 1
 [dependencies]
 # 加密 / 哈希 / KDF 统一走 RustCrypto「cipher 0.4 / digest 0.10」代际 —— 与兄弟项目
 # encryptable-rust 在本机验证过的组合一致，避免与 cipher 0.5 代际混用时的 trait 不匹配。
+# 例外：sm2 / sm3 系自身封装的第二栈（digest 0.11 / elliptic-curve 0.14 / signature 3 /
+# hmac 0.13 / rfc6979 0.6 等）属其 crate 内部依赖、不外传 trait，可安全共存（见 sm2 行）。
 zeroize = "1"                    # 密钥材质 Drop 清零（src/key.rs）
 rand_core = { version = "0.6", features = ["getrandom"] }   # 随机 IV / nonce（OsRng）
 
@@ -92,7 +94,8 @@ base64 = "0.22"
 sm2 = { version = "0.14", default-features = false, features = [
     "arithmetic",        # 椭圆曲线运算（加解密的前提）
     "pke",               # 公钥加密（C1C3C2 / C1C2C3）
-    "dsa",               # SM2DSA 签名 / 验签（src/guomi/sm2.rs 的 Sm2Signer）
+    "dsa",               # SM2DSA 签名 / 验签（1.2.0 起；带入 signature 3 / hmac 0.13 /
+                         #              rfc6979 0.6 第二栈，均封在 sm2 内部不外传 trait）
     "alloc",             # encrypt/decrypt 返回 Vec<u8>
     "std",
     "precomputed-tables", # 基点预计算表，加速密钥生成与加解密
@@ -110,7 +113,7 @@ zuc = "0.4"                      # ZUC-128 流密码
 # 与 aes / sm4 的处理保持一致。
 camellia = { version = "0.1.0", features = ["zeroize"] }  # camellia-256-cbc-hmac 的底层块密码
 aria = { version = "0.1.0", features = ["zeroize"] }      # aria-256-cbc-hmac 的底层块密码
-threefish = "0.5.2"              # threefish-512-cbc-hmac 的底层块密码（crate 内置 zeroize）
+threefish = { version = "0.5.2", features = ["zeroize"] }  # threefish-512-cbc-hmac（zeroize 为可选 feature，必须显式开启）
 kuznyechik = { version = "0.8.2", features = ["zeroize"] }  # kuznyechik-256-cbc-hmac 的底层块密码
 salsa20 = { version = "0.10.2", features = ["zeroize"] }  # salsa20 流密码（crate 默认 std）
 

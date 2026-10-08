@@ -10,7 +10,8 @@
 //! - 签名（GB/T 32918.2）为定长 64 字节 `r‖s`，即 128 位十六进制。
 //!
 //! **用户标识（ZA 的 ID）：固定为 [`DEFAULT_DIST_ID`] = `"1234567812345678"`**
-//! ——GM/T 0003.2 的默认示例值，sm2 crate 本身没有默认值（必须显式传入）。
+//! ——业界惯例默认 ID（GM/T 0003.2 公开示例实际使用 `"ALICE123@YAHOO.COM"`）；
+//! sm2 crate 本身不设默认，必须显式传入。
 //! ID 不随消息或签名传输，**验签方必须使用同一个 ID**，否则验签必然失败。
 //!
 //! 对应 PHP 版的 `Asymmetric\Sm2AsymmetricCipher` 与 `Guomi\Sm2EncryptionService`。
@@ -31,8 +32,9 @@ const LABEL: &str = "SM2";
 
 /// 签名 / 验签的用户标识（ZA 计算中的 ID），签名方与验签方必须一致。
 ///
-/// 取值 `"1234567812345678"` 为 GM/T 0003.2 / GB/T 32918.2 的默认示例 ID
-/// （16 字节 ASCII，ENTLA = 0x0080）。
+/// 取值 `"1234567812345678"` 为业界惯例默认 ID（标准公开示例使用
+/// `"ALICE123@YAHOO.COM"`；sm2 crate 不设默认，本库固定此值供开箱即用）。
+/// 16 字节 ASCII，ENTLA = 0x0080。
 pub const DEFAULT_DIST_ID: &str = "1234567812345678";
 
 /// SM2 密钥对（十六进制）：私钥 64 位，公钥 130 位（非压缩 `04‖X‖Y`）。
@@ -353,6 +355,39 @@ mod tests {
 
         let signature = Sm2Service::sign(b"payload", &pair.private_key_hex).unwrap();
         Sm2Service::verify(b"payload", &signature, bare).unwrap();
+    }
+
+    /// 压缩公钥（66 位 hex = 02/03‖X）同样可验签——文档承诺的第三种写法。
+    #[test]
+    fn compressed_public_key_verifies_too() {
+        use sm2::elliptic_curve::sec1::ToSec1Point;
+
+        let pair = Sm2Service::generate_key_pair_hex().unwrap();
+        let secret = sm2::SecretKey::from_slice(
+            &crate::internal::hex_decode(&pair.private_key_hex).unwrap(),
+        )
+        .unwrap();
+        let compressed_hex =
+            crate::internal::hex_encode(secret.public_key().to_sec1_point(true).as_bytes());
+        assert_eq!(compressed_hex.len(), 66);
+
+        let signature = Sm2Service::sign(b"payload", &pair.private_key_hex).unwrap();
+        Sm2Service::verify(b"payload", &signature, &compressed_hex).unwrap();
+    }
+
+    /// 跨层核验：本库 `Sm2Signer` 的签名必须能被裸 sm2 crate 的 `VerifyingKey`
+    /// （同一 DIST_ID 与编码路径）接受——钉住封装层没有引入 ID / 编码偏差。
+    #[test]
+    fn signature_is_accepted_by_raw_sm2_crate() {
+        let pair = Sm2Service::generate_key_pair_hex().unwrap();
+        let signature_hex = Sm2Service::sign(b"cross-layer", &pair.private_key_hex).unwrap();
+
+        let sec1 = crate::internal::hex_decode(&pair.public_key_hex).unwrap();
+        let verifying_key =
+            sm2::dsa::VerifyingKey::from_sec1_bytes(DEFAULT_DIST_ID, &sec1).unwrap();
+        let sig_bytes = crate::internal::hex_decode(&signature_hex).unwrap();
+        let signature = sm2::dsa::Signature::from_slice(&sig_bytes).unwrap();
+        verifying_key.verify(b"cross-layer", &signature).unwrap();
     }
 
     #[test]

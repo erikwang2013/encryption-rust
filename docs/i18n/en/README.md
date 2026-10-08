@@ -90,8 +90,9 @@ Cryptographic building blocks in the Rust ecosystem have long been scattered: AE
 
 ## Features
 
-- **Five capability families, one shape**: symmetric encryption / asymmetric encryption / hashing / key derivation / password-based derivation — each family follows the same contract (trait) → registry (Registry) → facade (Manager) pattern, so learning one family means learning them all.
+- **Eight capability families, one shape**: symmetric encryption / asymmetric encryption / hashing / key derivation / password-based derivation / signatures / key agreement / key encapsulation — each family follows the same contract (trait) → registry (Registry) → facade (Manager) pattern, so learning one family means learning them all.
 - **Ten identifiers out of the box**: `aes-256-gcm`, `sodium-xchacha20`, `aes-256-cbc-hmac`, `sm4-cbc`, `zuc-128`, `sm2`, `sha256`, `sm3`, `hkdf-sha256`, `pbkdf2-sha256` (identical to the PHP version's identifiers — migrating costs zero renames).
+- **Extended algorithm surface (1.2.0)**: beyond the factory defaults there are 30+ more identifiers — 9 symmetric, 8 hashes, 2 password KDFs, 1 asymmetric cipher, 5 signatures (including SM2 signing), 4 key-agreement, 3 key-encapsulation (post-quantum ML-KEM); all registered manually, leaving the factory and the PHP alignment surface untouched.
 - **Master key factory**: `EncryptionManagerFactory::from_master_key` — one 32-byte master key derives an independent subkey per algorithm from purpose labels, assembling every algorithm in one go and ruling out key reuse.
 - **Request guard + framework adapters**: native Rust plus 8 opt-in features for axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat; declare `Guard` as a handler parameter and encrypt/decrypt right there.
 - **Chinese national standards as first-class citizens**: SM2 / SM3 / SM4 / ZUC go through the same register-and-facade path as AES / SHA; SM1 / SM7 / SM9 return an explicit error rather than staying silent.
@@ -155,7 +156,7 @@ A complete runnable version lives in [`examples/quickstart.rs`](../../../example
 
 Source file: [`architecture-design.svg`](./architecture-design.svg)
 
-Capabilities are split into five groups of contracts, each with the same contract (trait) → registry (Registry) → facade (Manager) shape; `EncryptionManagerFactory` derives every subkey from one master key and assembles the symmetric registry.
+Capabilities are split into eight groups of contracts, each with the same contract (trait) → registry (Registry) → facade (Manager) shape; `EncryptionManagerFactory` derives every subkey from one master key and assembles the symmetric registry.
 
 | Capability | Contract (trait) | Registry | Facade (default algorithm) |
 |------|--------------|--------|------------------|
@@ -164,13 +165,17 @@ Capabilities are split into five groups of contracts, each with the same contrac
 | Hashing | `Hasher` | `Registry<Box<dyn Hasher>>` | `HashingManager` (`sha256`) |
 | Key derivation (IKM) | `KeyDerivation` | `Registry<Box<dyn KeyDerivation>>` | `KeyDerivationManager` (`hkdf-sha256`) |
 | Password-based derivation | `PasswordBasedKdf` | `Registry<Box<dyn PasswordBasedKdf>>` | `PasswordBasedKdfManager` (`pbkdf2-sha256`) |
+| Signatures | `Signer` | `Registry<Box<dyn Signer>>` | `SignatureManager` (default identifier passed to the constructor, e.g. `ed25519`) |
+| Key agreement | `KeyAgreement` | `Registry<Box<dyn KeyAgreement>>` | `KeyAgreementManager` (e.g. `x25519`) |
+| Key encapsulation | `KeyEncapsulation` | `Registry<Box<dyn KeyEncapsulation>>` | `KeyEncapsulationManager` (e.g. `ml-kem-768`) |
 
 - **Symmetric**: an instance is bound to a fixed key; payloads are binary, well suited to field-level bulk encryption.
 - **Asymmetric**: key material is passed in on every call (hexadecimal; the format is agreed by the implementation, e.g. SM2).
 - **Hashing**: one-way digest, keyless; `digest` returns bytes, `digest_hex` returns hexadecimal.
 - **Key derivation**: HKDF expands high-entropy material into subkeys; PBKDF2 stretches human passwords (random salt + a high iteration count).
 - **Subkeys**: `HMAC-SHA256(key = master key, msg = purpose label)`; SM4 / ZUC take the first 16 bytes.
-- **All five contracts are `Send + Sync`**: implementations can be shared across threads, which is what lets the request guard clone with zero key copies.
+- **All eight contracts are `Send + Sync`**: implementations can be shared across threads, which is what lets the request guard clone with zero key copies.
+- **Signatures / agreement / encapsulation**: keys and results are hexadecimal strings; ML-KEM decapsulation of a tampered ciphertext follows FIPS 203 implicit rejection — no error is raised, and a different pseudorandom key is returned.
 
 ## Functional design
 
@@ -180,12 +185,15 @@ Source file: [`functional-design.svg`](./functional-design.svg)
 
 | Capability family | Facade | Identifiers shipped with the crate |
 |--------|------|---------------------|
-| Symmetric encryption | `EncryptionManager` | `aes-256-gcm` / `sodium-xchacha20` / `aes-256-cbc-hmac` / `sm4-cbc` / `zuc-128` |
-| Asymmetric encryption | `AsymmetricCryptoManager` | `sm2` (plus the static facade `Sm2Service`) |
-| Hashing | `HashingManager` | `sha256` / `sm3` (both 32 bytes) |
+| Symmetric encryption | `EncryptionManager` | 5 factory defaults: `aes-256-gcm` / `sodium-xchacha20` / `aes-256-cbc-hmac` / `sm4-cbc` / `zuc-128`; 9 extensions: `chacha20-poly1305-ietf` / `aes-256-gcm-siv` / `camellia-256-cbc-hmac` / `aria-256-cbc-hmac` / `threefish-512-cbc-hmac` / `kuznyechik-256-cbc-hmac` / `salsa20` / `sm4-gcm` / `zuc-256` |
+| Asymmetric encryption | `AsymmetricCryptoManager` | `sm2` (plus the static facade `Sm2Service`); extension: `rsa-oaep-sha256` |
+| Hashing | `HashingManager` | `sha256` / `sm3`; extensions: `sha3-256` / `sha3-512` / `blake2b-512` / `blake2s-256` / `blake3` / `streebog-256` / `streebog-512` / `belt-hash` |
 | Key derivation (IKM) | `KeyDerivationManager` | `hkdf-sha256` (RFC 5869) |
-| Password-based derivation | `PasswordBasedKdfManager` | `pbkdf2-sha256` (310,000 iterations by default) |
-| Chinese national standards | the same five facades | `sm2` / `sm3` / `sm4-cbc` / `zuc-128`; SM1 / SM7 / SM9 → explicit error |
+| Password-based derivation | `PasswordBasedKdfManager` | `pbkdf2-sha256` (310,000 iterations by default); extensions: `argon2` / `scrypt` |
+| Signatures | `SignatureManager` | `sm2` (signing capability) / `ed25519` / `ecdsa-p256-sha256` / `ecdsa-p384-sha384` / `ecdsa-secp256k1-sha256` |
+| Key agreement | `KeyAgreementManager` | `x25519` / `ecdh-p256` / `ecdh-p384` / `ecdh-secp256k1` |
+| Key encapsulation (post-quantum) | `KeyEncapsulationManager` | `ml-kem-512` / `ml-kem-768` / `ml-kem-1024` (FIPS 203) |
+| Chinese national standards | the facades above | `sm2` (encryption + signing) / `sm3` / `sm4-cbc` / `zuc-128`; extensions `sm4-gcm` / `zuc-256`; SM1 / SM7 / SM9 → explicit error |
 
 Design principles, secure defaults, and the four-step path for "adding an algorithm" are the three blocks on the right of the diagram above; per-algorithm details (key length, payload structure) are under [Built-in algorithms and identifiers](#built-in-algorithms-and-identifiers) below.
 
@@ -222,12 +230,24 @@ Key rotation, migration, and every failure variant are in the "Maintenance & fai
 | `aes-256-cbc-hmac` | `Aes256CbcEncryptor` | 32 bytes | `v1 \| IV(16) \| MAC(32) \| ciphertext`, CBC + HMAC, compatible with legacy environments |
 | `sm4-cbc` | `Sm4CbcEncryptor` | 16 bytes | the same CBC-HMAC structure, Chinese national standard SM4 |
 | `zuc-128` | `Zuc128Encryptor` | 16 bytes | the same CBC-HMAC structure, ZUC-128 stream cipher XORed with the keystream |
+| `chacha20-poly1305-ietf` | `ChaCha20Poly1305IetfEncryptor` | 32 bytes | `v1 \| Nonce(12) \| Tag(16) \| ciphertext`, IETF ChaCha20-Poly1305 (RFC 8439), no AES hardware needed |
+| `aes-256-gcm-siv` | `Aes256GcmSivEncryptor` | 32 bytes | same frame layout, AES-256-GCM-SIV (RFC 8452) misuse-resistant AEAD, nonce reuse is not fatal |
+| `camellia-256-cbc-hmac` | `Camellia256CbcEncryptor` | 32 bytes | the same CBC-HMAC structure, Camellia-256 (ISO/IEC 18033-3) |
+| `aria-256-cbc-hmac` | `Aria256CbcEncryptor` | 32 bytes | the same CBC-HMAC structure, ARIA-256 (RFC 5794) |
+| `threefish-512-cbc-hmac` | `Threefish512CbcEncryptor` | 64 bytes | `v1 \| IV(64) \| MAC(32) \| ciphertext`, Threefish-512 (64-byte blocks and IV) |
+| `kuznyechik-256-cbc-hmac` | `Kuznyechik256CbcEncryptor` | 32 bytes | the same CBC-HMAC structure, Kuznyechik (GOST R 34.12-2015, fixed 256-bit key) |
+| `salsa20` | `Salsa20Encryptor` | 32 bytes | `v1 \| Nonce(8) \| MAC(32) \| ciphertext`, Salsa20/20 stream cipher XORed with the keystream |
+| `sm4-gcm` | `Sm4GcmEncryptor` | 16 bytes | `v1 \| Nonce(12) \| Tag(16) \| ciphertext`, SM4 + GCM assembled in-crate (anchored by RFC 8998 vectors) |
+| `zuc-256` | `Zuc256Encryptor` | 32 bytes | `v1 \| IV(23) \| MAC(32) \| ciphertext`, ZUC-256 stream cipher (32-byte key / 23-byte IV) |
+
+> The first five rows are registered by the master key factory; the rest are extensions from this release (registered manually, not part of the factory).
 
 ### Asymmetric encryption (`AsymmetricCipher`)
 
 | Identifier | Type | Notes |
 |------|------|------|
 | `sm2` | `Sm2AsymmetricCipher` / `Sm2Service` | Chinese national standard SM2; keys and ciphertext are hexadecimal, ciphertext layout C1C3C2 |
+| `rsa-oaep-sha256` | `RsaOaepSha256Cipher` | RSAES-OAEP (digest and MGF1 both SHA-256); private key = PKCS#8 DER, public key = SPKI DER, hex-encoded; `generate_key_pair_hex` refuses < 2048 bits |
 
 ### Hashing (`Hasher`)
 
@@ -235,6 +255,14 @@ Key rotation, migration, and every failure variant are in the "Maintenance & fai
 |------|------|----------|
 | `sha256` | `Sha256Hasher` | 32 bytes |
 | `sm3` | `Sm3Hasher` | 32 bytes |
+| `sha3-256` | `Sha3_256Hasher` | 32 bytes |
+| `sha3-512` | `Sha3_512Hasher` | 64 bytes |
+| `blake2b-512` | `Blake2b512Hasher` | 64 bytes |
+| `blake2s-256` | `Blake2s256Hasher` | 32 bytes |
+| `blake3` | `Blake3Hasher` | 32 bytes (default output; BLAKE3 supports extended output, this library uses the default length) |
+| `streebog-256` | `Streebog256Hasher` | 32 bytes |
+| `streebog-512` | `Streebog512Hasher` | 64 bytes |
+| `belt-hash` | `BeltHashHasher` | 32 bytes |
 
 ### Key derivation
 
@@ -242,6 +270,35 @@ Key rotation, migration, and every failure variant are in the "Maintenance & fai
 |------|------|------|------|
 | `hkdf-sha256` | `HkdfSha256` | `KeyDerivation` | RFC 5869, based on IKM + salt + info |
 | `pbkdf2-sha256` | `Pbkdf2Sha256` | `PasswordBasedKdf` | password + salt + iteration count (310,000 by default, adjustable through the constructor) |
+| `argon2` | `Argon2Kdf` | `PasswordBasedKdf` | Argon2id v19; defaults m=19456 KiB (~19 MiB) / t=2 / p=1, adjustable via `with_params` |
+| `scrypt` | `ScryptKdf` | `PasswordBasedKdf` | defaults log_n=17, r=8, p=1 (~128 MiB per derivation — mind the DoS surface in web contexts, adjustable via `with_params`) |
+
+### Signatures (`Signer`)
+
+| Identifier | Type | Notes |
+|------|------|------|
+| `sm2` | `Sm2Signer` | SM2 sign / verify; ZA default user ID `1234567812345678` (GM/T 0003.2) — **verifiers must use the same ID** |
+| `ed25519` | `Ed25519Signer` | RFC 8032; 32-byte seed private key, fixed 64-byte signature |
+| `ecdsa-p256-sha256` | `EcdsaP256Signer` | RFC 6979 deterministic signatures; raw-scalar private key hex, SEC1 uncompressed `04‖X‖Y` public key, fixed-size `r‖s` signature |
+| `ecdsa-p384-sha384` | `EcdsaP384Signer` | same (P-384 / SHA-384, 96-byte signatures) |
+| `ecdsa-secp256k1-sha256` | `EcdsaSecp256k1Signer` | same (secp256k1; RFC 6979 publishes no vectors for this curve, so its KAT degrades to behavioral tests) |
+
+### Key agreement (`KeyAgreement`)
+
+| Identifier | Type | Notes |
+|------|------|------|
+| `x25519` | `X25519Agreement` | RFC 7748; rejects the all-zero shared secret produced by small-order points |
+| `ecdh-p256` / `ecdh-p384` / `ecdh-secp256k1` | `EcdhP256` / `EcdhP384` / `EcdhSecp256k1` | static ECDH; the shared secret is the raw x-coordinate in hex |
+
+### Key encapsulation (`KeyEncapsulation`, post-quantum)
+
+| Identifier | Type | Public key ek | Private key dk | Ciphertext ct |
+|------|------|---------|---------|---------|
+| `ml-kem-512` | `MlKem512Kem` | 800 bytes | 1632 bytes | 768 bytes |
+| `ml-kem-768` | `MlKem768Kem` | 1184 bytes | 2400 bytes | 1088 bytes |
+| `ml-kem-1024` | `MlKem1024Kem` | 1568 bytes | 3168 bytes | 1568 bytes |
+
+FIPS 203 (ML-KEM) key encapsulation: encapsulating with the public key yields `(ciphertext, shared secret)` (32-byte shared secret), decapsulating with the private key yields the shared secret; everything is hex-encoded. A tampered ciphertext or a mismatched private key follows the standard **implicit rejection** semantics: no error is raised, and a different pseudorandom key is returned.
 
 SM1, SM7, and SM9 have no implementation: calling `guomi::unavailable::sm1()` and friends returns an explicit `UnsupportedNationalAlgorithm` error, so business code can catch it uniformly or wire in a vendor SDK / HSM.
 
@@ -387,6 +444,50 @@ match manager.decrypt(&stored) {
 }
 ```
 
+### 8. Extended algorithms: signatures / key agreement / post-quantum KEM
+
+Extensions are not part of the master key factory (the factory defaults and the PHP alignment surface stay unchanged); wire them onto a registry yourself. Keys, signatures, ciphertexts, and shared secrets are all hexadecimal strings. See the module docs for every extension (`encryption::encryptor` / `hash` / `kdf` / `asymmetric` / `pqc` / `guomi`).
+
+```rust
+use encryption::asymmetric::Ed25519Signer;
+use encryption::contract::Signer;
+use encryption::manager::SignatureManager;
+use encryption::registry::Registry;
+
+// Manual assembly (Ed25519 shown; SM2 signing is the same Signer contract)
+let mut registry: Registry<Box<dyn Signer>> = Registry::new("signer");
+registry.register(Box::new(Ed25519Signer::new()));
+let manager = SignatureManager::new(registry, "ed25519")?;
+
+let pair = Ed25519Signer::generate_key_pair_hex()?;
+let signature = manager.sign(b"message", &pair.private_key_hex)?;
+manager.verify(b"message", &signature, &pair.public_key_hex)?; // failure → VerificationFailed, no cause disclosed
+```
+
+```rust
+use encryption::asymmetric::X25519Agreement;
+use encryption::contract::KeyAgreement;
+
+// Key agreement: both sides derive the same shared secret from (own private key, peer public key)
+let alice = X25519Agreement::generate_key_pair_hex()?;
+let bob = X25519Agreement::generate_key_pair_hex()?;
+let sender = X25519Agreement::new().agree(&alice.private_key_hex, &bob.public_key_hex)?;
+let receiver = X25519Agreement::new().agree(&bob.private_key_hex, &alice.public_key_hex)?;
+assert_eq!(sender, receiver);
+```
+
+```rust
+use encryption::contract::KeyEncapsulation;
+use encryption::pqc::MlKem768Kem;
+
+// Post-quantum: ML-KEM key encapsulation (FIPS 203)
+let kem = MlKem768Kem::new();
+let (ek_hex, dk_hex) = kem.generate()?;               // (public key, private key)
+let (ct_hex, secret_hex) = kem.encapsulate(&ek_hex)?; // (ciphertext, shared secret)
+assert_eq!(kem.decapsulate(&ct_hex, &dk_hex)?, secret_hex);
+// On a tampered ciphertext: no error, a different pseudorandom key is returned (implicit rejection, per the standard)
+```
+
 ## Framework integration (optional features)
 
 [`Guard`](../../../src/guard.rs) is a framework-agnostic request guard: internally it is an `Arc<EncryptionManager>`, so cloning it just bumps a reference count and **copies no key material**. One opt-in feature per framework; a default build pulls in none of them.
@@ -450,6 +551,7 @@ This library follows the architecture and identifier design of the PHP version [
 3. No extension dependencies: Sodium XChaCha20 is a pure-Rust implementation, always available (the original needs `ext-sodium`); SM2 has no `ext-gmp` prerequisite.
 4. SM2 ciphertext / key encoding follows the RustCrypto `sm2` standard (C1C3C2, uncompressed C1) and is not aligned with the original's pohoc/crypto-sm layout.
 5. Framework adapters are rewritten for the Rust ecosystem: native Rust (the `Guard` request guard) plus axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat, corresponding to the original's Laravel / ThinkPHP / Hyperf / webman integrations.
+6. Since 1.2.0 there is an extension surface beyond the PHP version: symmetric ciphers (IETF ChaCha20-Poly1305 / AES-GCM-SIV / Camellia / ARIA / Threefish / Kuznyechik / Salsa20), hashes (SHA-3 / BLAKE2 / BLAKE3 / Streebog / Belt-Hash), password KDFs (Argon2id / scrypt), RSA-OAEP, ECDSA / Ed25519 / X25519 / ECDH, post-quantum ML-KEM, and three new contracts (`Signer` / `KeyAgreement` / `KeyEncapsulation`) — none of which exist in the PHP version; their identifiers, key formats, and frame layouts are defined by this library.
 
 ## Project layout
 
@@ -457,19 +559,22 @@ This library follows the architecture and identifier design of the PHP version [
 encryption-rust/
 ├── src/
 │   ├── lib.rs                 crate docs and module exports
-│   ├── contract.rs            the five capability contracts (traits) and Identified
+│   ├── contract.rs            the eight capability contracts (traits) and Identified
 │   ├── registry.rs            the generic registry Registry<T>
-│   ├── manager.rs             the five facades: Encryption / Asymmetric / Hashing / KeyDerivation / PasswordBasedKdf
+│   ├── manager.rs             six facades: Encryption / Asymmetric / Hashing / KeyDerivation / PasswordBasedKdf / KeyEncapsulation
+│   │   └── manager/asymmetric.rs  two more facades: Signature / KeyAgreement
 │   ├── factory.rs             master key factory: subkey derivation and registry assembly
 │   ├── guard.rs               request guard Guard (Arc<EncryptionManager>, framework-agnostic)
 │   ├── integrations/          8 framework adapters (each behind its own feature)
 │   │                          axum / actix / rocket / poem / salvo / warp / bee_rust / ecat
 │   ├── key.rs                 fixed-length key material Key<N> (zeroized on Drop, redacted Debug)
 │   ├── error.rs               Error / Result
-│   ├── encryptor/             aes256gcm / aes256cbc / sodium_xchacha20
-│   ├── hash/                  sha256
-│   ├── kdf/                   hkdf_sha256 / pbkdf2_sha256
-│   ├── guomi/                 sm2 / sm3 / sm4 / zuc / unavailable (SM1/SM7/SM9 placeholders)
+│   ├── asymmetric/            rsa / ecdsa / ecdh / ed25519 / x25519 (KeyPairHex unified here)
+│   ├── encryptor/             aes256gcm / aes256cbc / sodium_xchacha20 / chacha20poly1305_ietf / aes256gcm_siv / camellia256cbc / aria256cbc / threefish512cbc / kuznyechikcbc / salsa20
+│   ├── hash/                  sha256 / sha3 / blake2 / blake3 / streebog / belt
+│   ├── kdf/                   hkdf_sha256 / pbkdf2_sha256 / argon2 / scrypt
+│   ├── pqc/                   ml_kem (FIPS 203 post-quantum KEM)
+│   ├── guomi/                 sm2 (encryption + signing) / sm3 / sm4 / sm4_gcm / zuc / zuc256 / unavailable (SM1/SM7/SM9 placeholders)
 │   ├── internal/              hex helpers and etm.rs (the encrypt-then-MAC shared by CBC/SM4/ZUC)
 │   └── pet.rs                 project pet Locky (NAME / TAGLINE / ASCII / SVG)
 ├── tests/
@@ -530,7 +635,7 @@ cargo run --example quickstart
 cargo bench --bench crypto_bench # criterion: wrapper vs raw-crate overhead
 ```
 
-Coverage: per-algorithm round trips and tamper-always-fails, cross-algorithm non-interoperability, factory subkey independence and validation, registry / facade behavior, SM2 key paths, the pet constants, guard extraction for every framework (including the "forgot to wire it → 500" path), and the [cross-implementation KATs](../../../tests/known_answer.rs) (reference ciphertexts produced by OpenSSL / libsodium).
+Coverage: per-algorithm round trips and tamper-always-fails, cross-algorithm non-interoperability, factory subkey independence and validation, registry / facade behavior, SM2 key paths, the pet constants, guard extraction for every framework (including the "forgot to wire it → 500" path), and the [cross-implementation KATs](../../../tests/known_answer.rs) (reference ciphertexts produced by OpenSSL / libsodium). Extensions added in 1.2.0 carry inline official KATs (RFC 8439 / 8452 / 6979 / 8032 / 7748 / 5903 / 9106 / 7914, FIPS 202 / 203, GOST and STB standard vectors, and more).
 
 ## Reference original project
 

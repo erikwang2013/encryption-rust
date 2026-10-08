@@ -14,7 +14,7 @@
 pub mod ecdh;
 pub mod ecdsa;
 pub mod ed25519;
-mod rsa;
+pub mod rsa;
 pub mod x25519;
 
 pub use rsa::{RsaOaepSha256Cipher, RsaOaepSha256Service};

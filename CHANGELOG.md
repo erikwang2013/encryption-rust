@@ -4,6 +4,25 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.0] - 2026-10-09
+
+### Added
+- 对称加密扩展 9 个标识：`chacha20-poly1305-ietf`（RFC 8439）、`aes-256-gcm-siv`（RFC 8452 误用稳健 AEAD）、`camellia-256-cbc-hmac`、`aria-256-cbc-hmac`、`threefish-512-cbc-hmac`、`kuznyechik-256-cbc-hmac`、`salsa20`、`sm4-gcm`（sm4 + ctr + ghash 组装，RFC 8998 向量逐字节锚定）、`zuc-256`（32 字节密钥 / 23 字节 IV，规范 v1.1 双向量锚定）
+- 哈希扩展 8 个标识：`sha3-256` / `sha3-512`（FIPS 202）、`blake2b-512` / `blake2s-256`（RFC 7693）、`blake3`、`streebog-256` / `streebog-512`（GOST R 34.11-2012）、`belt-hash`（STB 34.101.31）
+- 口令派生扩展：`argon2`（Argon2id v19，RFC 9106；默认约 19 MiB/次）、`scrypt`（RFC 7914；默认约 128 MiB/次，文档标注 Web DoS 面）
+- 非对称加密扩展：`rsa-oaep-sha256`（PKCS#8 / SPKI DER 十六进制密钥；解密盲化防时序侧信道；Project Wycheproof 定值向量）
+- 三个新契约与门面：`Signer`（`SignatureManager`）、`KeyAgreement`（`KeyAgreementManager`）、`KeyEncapsulation`（`KeyEncapsulationManager`）
+- 签名 5 个标识：`sm2`（新增签名能力，GM/T 0003.2 默认用户 ID 已固化并文档化）、`ed25519`（RFC 8032）、`ecdsa-p256-sha256` / `ecdsa-p384-sha384` / `ecdsa-secp256k1-sha256`（RFC 6979 确定性签名）
+- 密钥协商 4 个标识：`x25519`（RFC 7748，拒绝小阶点）、`ecdh-p256` / `ecdh-p384` / `ecdh-secp256k1`
+- 后量子密钥封装 3 个标识：`ml-kem-512` / `ml-kem-768` / `ml-kem-1024`（FIPS 203；NIST ACVP 定值向量；隐式拒绝语义实现、文档与测试三处一致）
+- 新错误变体：`SignFailed` / `VerificationFailed`（验签失败不区分原因）与 `InvalidKdfParams`
+- 扩展面算法一律不进主密钥工厂默认集，工厂注册集与 PHP 对齐面保持不变；已知缺口已如实文档化：secp256k1 的 ECDSA / ECDH 无权威定值向量（RFC 6979 / 5903 未收录），以行为测试覆盖
+
+### Changed
+- `sm2` 启用 `dsa` feature（SM2 签名）；`KeyPairHex` 统一为 `encryption::asymmetric::KeyPairHex`（RSA 与签名 / 协商共用）
+- 新增钉版依赖：`ghash` / `ctr`（SM4-GCM 组装）、`p256` / `p384` / `k256` / `ed25519-dalek` / `x25519-dalek`、`ml-kem` 0.2.3（features `deterministic` + `zeroize`）、`rsa` 0.9、`sha3` / `blake2` / `blake3` / `streebog` / `belt-hash`、`argon2` / `scrypt`、`camellia` / `aria` / `threefish` / `kuznyechik` / `salsa20` / `aes-gcm-siv` —— 全部落在既有 cipher 0.4 / digest 0.10 / aead 0.5 / elliptic-curve 0.13 / signature 2 代际
+- README（中英）与项目目录说明同步扩展面
+
 ## [1.1.1] - 2026-10-07
 
 ### Fixed

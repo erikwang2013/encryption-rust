@@ -11,7 +11,7 @@ use std::fmt;
 /// 库统一错误。
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Error {
-    /// 密钥长度不符合算法要求。
+    /// 长度不符合算法要求（密钥、盐、密文等；单位由调用点语境决定，如字节或位）。
     InvalidKeyLength {
         label: &'static str,
         expected: usize,
@@ -64,10 +64,7 @@ impl fmt::Display for Error {
                 label,
                 expected,
                 got,
-            } => write!(
-                f,
-                "{label} key must be exactly {expected} bytes (got {got})."
-            ),
+            } => write!(f, "{label} length must be {expected} (got {got})."),
             Error::InvalidPrefix { label } => write!(f, "Invalid {label} ciphertext prefix."),
             Error::TooShort { label } => write!(f, "{label} ciphertext too short."),
             Error::MacVerificationFailed { label } => write!(f, "{label} MAC verification failed."),

@@ -10,6 +10,11 @@
 //! 签名 nonce 走 RFC 6979 确定性路径：`ecdsa` 0.16 的 `Signer` 实现即 RFC 6979 §3.2
 //! 算法（已在 ecdsa-0.16.9 源码确认），同私钥 + 同消息的签名逐字节可复现，
 //! 不消耗随机源（RFC 6979 附录 A.2.5 定值向量已入测试）。
+//!
+//! **low-s 归一化**：签名输出前对 `s` 取 `min(s, n−s)`（BIP-62 惯例），消除
+//! `(r, s)` / `(r, n−s)` 双解延展性——同一消息 + 密钥只有唯一签名字节串，
+//! 适合以签名字节做去重 / 缓存键的场景。RFC 6979 原始向量中 s 高于 n/2 的
+//! 条目，测试按归一化后的期望值断言（r 不变，n−s 已独立复算核对）。
 
 use rand_core::OsRng;
 
@@ -36,14 +41,19 @@ macro_rules! ecdsa_signer {
                 Self
             }
 
-            /// 对消息签名（RFC 6979 确定性 nonce），返回定长 `r‖s` hex。
+            /// 对消息签名（RFC 6979 确定性 nonce + low-s 归一化），返回定长 `r‖s` hex。
             fn sign_hex(message: &[u8], private_key_hex: &str) -> Result<String> {
                 let private_bytes = hex_decode(private_key_hex)
                     .map_err(|_| Error::InvalidKey { label: $label })?;
                 let signing_key = $curve::ecdsa::SigningKey::from_slice(&private_bytes)
                     .map_err(|_| Error::InvalidKey { label: $label })?;
                 // 标注签名类型：`SigningKey` 对 `Signer` 有多个实现（定长与 DER）。
-                let signature: $curve::ecdsa::Signature = signing_key.sign(message);
+                // try_sign 而非 sign：签名路径理论失败返回错误，不 panic（与 SM2 同款）。
+                let signature: $curve::ecdsa::Signature = signing_key
+                    .try_sign(message)
+                    .map_err(|_| Error::SignFailed { label: $label })?;
+                // low-s 归一化（BIP-62 惯例）：`(r, s)` 与 `(r, n−s)` 只保留一个。
+                let signature = signature.normalize_s().unwrap_or(signature);
                 Ok(hex_encode(signature.to_bytes().as_slice()))
             }
 
@@ -193,7 +203,14 @@ mod tests {
             "0460fed4ba255a9d31c961eb74c6356d68c049b8923b61fa6ce669622e60f29fb6",
             "7903fe1008b8bc99a41ae9e95628bc64f2f1b20c2d7e9f5177a3c294d4462299",
         );
+        // RFC 原文 s = f7cb…cda8（高于 n/2）；本库输出做 low-s 归一化，
+        // 期望值 = r ‖ (n − s)，n−s 由独立 Python 复算核对。
         const EXPECTED: &str = concat!(
+            "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716",
+            "0834e36ad29a83bf2bc9385e491d6099c8fdf9d1ed67aa7ea5f51f93782857a9",
+        );
+        // RFC 向量本体（未归一化）也必须可验签——两种形态都合法。
+        const VECTOR: &str = concat!(
             "efd48b2aacb6a8fd1140dd9cd45e81d69d2c877b56aaf991c34d0ea84eaf3716",
             "f7cb1c942d657c41d436c7a1b6e29f65f3e900dbb9aff4064dc4ab2f843acda8",
         );
@@ -202,8 +219,9 @@ mod tests {
         let signature = signer.sign(b"sample", X).unwrap();
         assert_eq!(signature, EXPECTED);
 
-        // 向量中的公钥（`04‖Ux‖Uy`）必须能验出该签名；换消息必败。
+        // 向量中的公钥（`04‖Ux‖Uy`）必须能验出签名（归一化前后两种形态都合法）；换消息必败。
         signer.verify(b"sample", &signature, PUBLIC_KEY).unwrap();
+        signer.verify(b"sample", VECTOR, PUBLIC_KEY).unwrap();
         assert!(signer.verify(b"sampl3", &signature, PUBLIC_KEY).is_err());
     }
 
@@ -227,15 +245,48 @@ mod tests {
             "6b9d3dad2e1b8c1c05b19875b6659f4de23c3b667bf297ba9aa47740787137d8",
             "96d5724e4c70a825f872c9ea60d2edf5",
         );
+        // RFC 原文 s 高于 n/2；本库做 low-s 归一化，期望值 = r ‖ (n − s)，
+        // n−s 由独立 Python 复算核对。
         const EXPECTED: &str = concat!(
             "94edbb92a5ecb8aad4736e56c691916b3f88140666ce9fa73d64c4ea95ad133c",
             "81a648152e44acf96e36dd1e80fabe46",
-            "99ef4aeb15f178cea1fe40db2603138f130e740a19624526203b6351d0a3a94f",
-            "a329c145786e679e7b82c71a38628ac8",
+            "6610b514ea0e87315e01bf24d9fcec70ecf18bf5e69dbad9a727ea302393848f",
+            "b4f04c6cd0423fdc7169525094629eab",
         );
 
         let signature = EcdsaP384Signer::new().sign(b"sample", X).unwrap();
         assert_eq!(signature, EXPECTED);
+    }
+
+    /// KAT：secp256k1（RFC 6979 §3.2 确定性 k，私钥 x = 1，消息 "Satoshi Nakamoto"）。
+    /// 向量出处：独立 Python（RFC 6979 §3.2 HMAC-DRBG + secp256k1 点乘）复算，
+    /// 与社区广泛使用的 Trezor 测试向量（同为 low-s 形态）逐字节一致。
+    /// RFC 6979 / RFC 5903 均未收录 secp256k1 的附录定值，这是该曲线唯一的外部锚点。
+    #[test]
+    fn rfc6979_secp256k1_satoshi_vector_matches() {
+        const X: &str = "0000000000000000000000000000000000000000000000000000000000000001";
+        const EXPECTED: &str = concat!(
+            "934b1ea10a4b3c1757e2b0c017d0b6143ce3c9a7e6a4a49860d7a6ab210ee3d8",
+            "2442ce9d2b916064108014783e923ec36b49743e2ffa1c4496f01a512aafd9e5",
+        );
+        // 私钥 1 的公钥即基点 G。
+        const PUBLIC_KEY: &str = concat!(
+            "0479be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+            "483ada7726a3c4655da4fbfc0e1108a8fd17b448a68554199c47d08ffb10d4b8",
+        );
+
+        let signer = EcdsaSecp256k1Signer::new();
+        let signature = signer.sign(b"Satoshi Nakamoto", X).unwrap();
+        assert_eq!(signature, EXPECTED);
+
+        signer
+            .verify(b"Satoshi Nakamoto", &signature, PUBLIC_KEY)
+            .unwrap();
+        assert!(
+            signer
+                .verify(b"Satoshi Nakamot0", &signature, PUBLIC_KEY)
+                .is_err()
+        );
     }
 
     /// RFC 6979 是确定性签名：同私钥 + 同消息，签名逐字节一致。

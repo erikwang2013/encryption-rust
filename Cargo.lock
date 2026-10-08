@@ -1594,7 +1594,7 @@ dependencies = [
 
 [[package]]
 name = "encryption-rust"
-version = "1.1.1"
+version = "1.2.0"
 dependencies = [
  "actix-web",
  "aes",
@@ -4767,6 +4767,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a693d0c8cf16973fac5a93fbe47b8c6452e7097d4fcac49f3d7a18e39c76e62e"
 dependencies = [
  "cipher",
+ "zeroize",
 ]
 
 [[package]]

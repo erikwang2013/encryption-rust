@@ -50,6 +50,7 @@ impl SymmetricCipher for Zuc256Encryptor {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
         let mut iv = [0u8; IV_LEN];
         OsRng.fill_bytes(&mut iv);
+        // 注：底层按 ZUC-256 规范取 iv[22] 的低 6 bit，有效 IV 熵为 182 bit。
 
         let mut buffer = plaintext.to_vec();
         xor_keystream(self.key.as_bytes(), &iv, &mut buffer);

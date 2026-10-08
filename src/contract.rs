@@ -70,6 +70,9 @@ pub trait Signer: Identified + Send + Sync {
 /// 密钥协商：以己方私钥与对方公钥导出共享秘密（ECDH / X25519）。
 pub trait KeyAgreement: Identified + Send + Sync {
     /// 返回定长共享秘密的十六进制（长度由实现决定，如 X25519 为 64 位十六进制）。
+    ///
+    /// 共享秘密是**原始 DH 输出**，不应直接当密钥使用：请先经 KDF 派生
+    /// （本库自带 [`KeyDerivation`] / HKDF）。
     fn agree(&self, private_key_hex: &str, peer_public_key_hex: &str) -> Result<String>;
 }
 

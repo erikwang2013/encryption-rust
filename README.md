@@ -90,8 +90,9 @@ Rust 生态中密码学实现长期分散：AES 用 `aes-gcm`、流密码用 `ch
 
 ## 项目功能
 
-- **五族能力，一套结构**：对称加密 / 非对称加密 / 哈希 / 密钥派生 / 口令派生 —— 每族都是「契约（trait）→ 注册表（Registry）→ 门面（Manager）」的同一形状，学会一族就会全部。
+- **八族能力，一套结构**：对称加密 / 非对称加密 / 哈希 / 密钥派生 / 口令派生 / 签名 / 密钥协商 / 密钥封装 —— 每族都是「契约（trait）→ 注册表（Registry）→ 门面（Manager）」的同一形状，学会一族就会全部。
 - **十个开箱标识**：`aes-256-gcm`、`sodium-xchacha20`、`aes-256-cbc-hmac`、`sm4-cbc`、`zuc-128`、`sm2`、`sha256`、`sm3`、`hkdf-sha256`、`pbkdf2-sha256`（与 PHP 版标识一致，迁移零改名成本）。
+- **扩展算法面（1.2.0）**：工厂默认集之外另有 30 余个扩展标识——对称 9、哈希 8、口令派生 2、非对称 1、签名 5（含 SM2 签名能力）、密钥协商 4、密钥封装 3（ML-KEM 后量子）；全部手动注册，工厂与 PHP 对齐面不受影响。
 - **主密钥工厂**：`EncryptionManagerFactory::from_master_key` —— 一把 32 字节主密钥按用途标签派生各算法独立子密钥，一次装配全部算法，杜绝密钥复用。
 - **请求守卫 Guard + 框架适配**：原生 Rust 与 axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat 共 8 个 opt-in feature；处理器参数直接声明 `Guard` 即可加解密。
 - **国密一等公民**：SM2 / SM3 / SM4 / ZUC 与 AES / SHA 走同一条注册-门面链路；SM1 / SM7 / SM9 给出明确错误而非静默。
@@ -155,7 +156,7 @@ let phone = manager.decrypt(&stored)?;
 
 图源文件：[`docs/architecture-design.svg`](./docs/architecture-design.svg)
 
-能力被拆成五组契约，每组一套「契约（trait）→ 注册表（Registry）→ 门面（Manager）」；`EncryptionManagerFactory` 从一把主密钥派生全部子密钥并装配对称注册表。
+能力被拆成八组契约，每组一套「契约（trait）→ 注册表（Registry）→ 门面（Manager）」；`EncryptionManagerFactory` 从一把主密钥派生全部子密钥并装配对称注册表。
 
 | 能力 | 契约（trait） | 注册表 | 门面（默认算法） |
 |------|--------------|--------|------------------|
@@ -164,13 +165,17 @@ let phone = manager.decrypt(&stored)?;
 | 哈希 | `Hasher` | `Registry<Box<dyn Hasher>>` | `HashingManager`（`sha256`） |
 | 密钥派生（IKM） | `KeyDerivation` | `Registry<Box<dyn KeyDerivation>>` | `KeyDerivationManager`（`hkdf-sha256`） |
 | 口令派生 | `PasswordBasedKdf` | `Registry<Box<dyn PasswordBasedKdf>>` | `PasswordBasedKdfManager`（`pbkdf2-sha256`） |
+| 签名 | `Signer` | `Registry<Box<dyn Signer>>` | `SignatureManager`（默认标识由构造传入，示例 `ed25519`） |
+| 密钥协商 | `KeyAgreement` | `Registry<Box<dyn KeyAgreement>>` | `KeyAgreementManager`（示例 `x25519`） |
+| 密钥封装 | `KeyEncapsulation` | `Registry<Box<dyn KeyEncapsulation>>` | `KeyEncapsulationManager`（示例 `ml-kem-768`） |
 
 - **对称**：实例绑定固定密钥；载荷为二进制，适合字段级批量加密。
 - **非对称**：每次调用传入密钥材料（十六进制，格式由实现约定，如 SM2）。
 - **哈希**：单向摘要，无密钥；`digest` 返回字节，`digest_hex` 返回十六进制。
 - **密钥派生**：HKDF 把高熵材料展开为子密钥；PBKDF2 拉伸人类口令（随机盐 + 高迭代数）。
 - **子密钥**：`HMAC-SHA256(key = 主密钥, msg = 用途标签)`；SM4 / ZUC 取前 16 字节。
-- **五个契约全部 `Send + Sync`**：实现可跨线程共享，请求守卫得以零密钥拷贝地克隆。
+- **八个契约全部 `Send + Sync`**：实现可跨线程共享，请求守卫得以零密钥拷贝地克隆。
+- **签名 / 协商 / 封装**：密钥与结果一律十六进制字符串；ML-KEM 解封装遇到被篡改密文按 FIPS 203 隐式拒绝——不报错，返回与封装端不同的伪随机密钥。
 
 ## 功能设计
 
@@ -180,12 +185,15 @@ let phone = manager.decrypt(&stored)?;
 
 | 能力族 | 门面 | 随 crate 交付的标识 |
 |--------|------|---------------------|
-| 对称加密 | `EncryptionManager` | `aes-256-gcm` / `sodium-xchacha20` / `aes-256-cbc-hmac` / `sm4-cbc` / `zuc-128` |
-| 非对称加密 | `AsymmetricCryptoManager` | `sm2`（另有静态门面 `Sm2Service`） |
-| 哈希 | `HashingManager` | `sha256` / `sm3`（均 32 字节） |
+| 对称加密 | `EncryptionManager` | 工厂默认 5 个：`aes-256-gcm` / `sodium-xchacha20` / `aes-256-cbc-hmac` / `sm4-cbc` / `zuc-128`；扩展 9 个：`chacha20-poly1305-ietf` / `aes-256-gcm-siv` / `camellia-256-cbc-hmac` / `aria-256-cbc-hmac` / `threefish-512-cbc-hmac` / `kuznyechik-256-cbc-hmac` / `salsa20` / `sm4-gcm` / `zuc-256` |
+| 非对称加密 | `AsymmetricCryptoManager` | `sm2`（另有静态门面 `Sm2Service`）；扩展：`rsa-oaep-sha256` |
+| 哈希 | `HashingManager` | `sha256` / `sm3`；扩展：`sha3-256` / `sha3-512` / `blake2b-512` / `blake2s-256` / `blake3` / `streebog-256` / `streebog-512` / `belt-hash` |
 | 密钥派生（IKM） | `KeyDerivationManager` | `hkdf-sha256`（RFC 5869） |
-| 口令派生 | `PasswordBasedKdfManager` | `pbkdf2-sha256`（默认 310,000 次迭代） |
-| 国密 | 同上五个门面 | `sm2` / `sm3` / `sm4-cbc` / `zuc-128`；SM1 / SM7 / SM9 → 明确错误 |
+| 口令派生 | `PasswordBasedKdfManager` | `pbkdf2-sha256`（默认 310,000 次迭代）；扩展：`argon2` / `scrypt` |
+| 签名 | `SignatureManager` | `sm2`（签名能力）/ `ed25519` / `ecdsa-p256-sha256` / `ecdsa-p384-sha384` / `ecdsa-secp256k1-sha256` |
+| 密钥协商 | `KeyAgreementManager` | `x25519` / `ecdh-p256` / `ecdh-p384` / `ecdh-secp256k1` |
+| 密钥封装（后量子） | `KeyEncapsulationManager` | `ml-kem-512` / `ml-kem-768` / `ml-kem-1024`（FIPS 203） |
+| 国密 | 同上各门面 | `sm2`（加解密 + 签名）/ `sm3` / `sm4-cbc` / `zuc-128`；扩展 `sm4-gcm` / `zuc-256`；SM1 / SM7 / SM9 → 明确错误 |
 
 设计原则、安全默认值与「新增一个算法」的四步路径见上图右侧三块；每个算法的细节（密钥长度、载荷结构）见下文[内置算法与标识](#内置算法与标识)。
 
@@ -222,12 +230,24 @@ let phone = manager.decrypt(&stored)?;
 | `aes-256-cbc-hmac` | `Aes256CbcEncryptor` | 32 字节 | `v1 \| IV(16) \| MAC(32) \| 密文`，CBC + HMAC，兼容旧环境 |
 | `sm4-cbc` | `Sm4CbcEncryptor` | 16 字节 | 同 CBC-HMAC 结构，国密 SM4 |
 | `zuc-128` | `Zuc128Encryptor` | 16 字节 | 同 CBC-HMAC 结构，ZUC-128 流密码与密钥流异或 |
+| `chacha20-poly1305-ietf` | `ChaCha20Poly1305IetfEncryptor` | 32 字节 | `v1 \| Nonce(12) \| Tag(16) \| 密文`，IETF ChaCha20-Poly1305（RFC 8439），无 AES 硬件依赖 |
+| `aes-256-gcm-siv` | `Aes256GcmSivEncryptor` | 32 字节 | 同上帧结构，AES-256-GCM-SIV（RFC 8452）误用稳健 AEAD，nonce 复用不致命 |
+| `camellia-256-cbc-hmac` | `Camellia256CbcEncryptor` | 32 字节 | 同 CBC-HMAC 结构，Camellia-256（ISO/IEC 18033-3） |
+| `aria-256-cbc-hmac` | `Aria256CbcEncryptor` | 32 字节 | 同 CBC-HMAC 结构，ARIA-256（RFC 5794） |
+| `threefish-512-cbc-hmac` | `Threefish512CbcEncryptor` | 64 字节 | `v1 \| IV(64) \| MAC(32) \| 密文`，Threefish-512（块与 IV 均 64 字节） |
+| `kuznyechik-256-cbc-hmac` | `Kuznyechik256CbcEncryptor` | 32 字节 | 同 CBC-HMAC 结构，Kuznyechik（GOST R 34.12-2015，密钥固定 256 位） |
+| `salsa20` | `Salsa20Encryptor` | 32 字节 | `v1 \| Nonce(8) \| MAC(32) \| 密文`，Salsa20/20 流密码与密钥流异或 |
+| `sm4-gcm` | `Sm4GcmEncryptor` | 16 字节 | `v1 \| Nonce(12) \| Tag(16) \| 密文`，SM4 + GCM 组装（RFC 8998 向量锚定） |
+| `zuc-256` | `Zuc256Encryptor` | 32 字节 | `v1 \| IV(23) \| MAC(32) \| 密文`，ZUC-256 流密码（32 字节密钥 / 23 字节 IV） |
+
+> 前五行由主密钥工厂默认注册；其余为本批扩展实现（手动 `register`，不进工厂）。
 
 ### 非对称加密（`AsymmetricCipher`）
 
 | 标识 | 类型 | 说明 |
 |------|------|------|
 | `sm2` | `Sm2AsymmetricCipher` / `Sm2Service` | 国密 SM2；密钥与密文为十六进制，密文布局 C1C3C2 |
+| `rsa-oaep-sha256` | `RsaOaepSha256Cipher` | RSAES-OAEP（摘要与 MGF1 均 SHA-256）；私钥 PKCS#8 DER / 公钥 SPKI DER 的十六进制；`generate_key_pair_hex` 拒绝 < 2048 位 |
 
 ### 哈希（`Hasher`）
 
@@ -235,6 +255,14 @@ let phone = manager.decrypt(&stored)?;
 |------|------|----------|
 | `sha256` | `Sha256Hasher` | 32 字节 |
 | `sm3` | `Sm3Hasher` | 32 字节 |
+| `sha3-256` | `Sha3_256Hasher` | 32 字节 |
+| `sha3-512` | `Sha3_512Hasher` | 64 字节 |
+| `blake2b-512` | `Blake2b512Hasher` | 64 字节 |
+| `blake2s-256` | `Blake2s256Hasher` | 32 字节 |
+| `blake3` | `Blake3Hasher` | 32 字节（默认输出；BLAKE3 支持扩展输出，本库走默认长度） |
+| `streebog-256` | `Streebog256Hasher` | 32 字节 |
+| `streebog-512` | `Streebog512Hasher` | 64 字节 |
+| `belt-hash` | `BeltHashHasher` | 32 字节 |
 
 ### 密钥派生
 
@@ -242,6 +270,35 @@ let phone = manager.decrypt(&stored)?;
 |------|------|------|------|
 | `hkdf-sha256` | `HkdfSha256` | `KeyDerivation` | RFC 5869，基于 IKM + salt + info |
 | `pbkdf2-sha256` | `Pbkdf2Sha256` | `PasswordBasedKdf` | 口令 + 盐 + 迭代次数（默认 310,000，构造参数可调） |
+| `argon2` | `Argon2Kdf` | `PasswordBasedKdf` | Argon2id v19；默认 m=19456 KiB（约 19 MiB）/ t=2 / p=1，`with_params` 可调 |
+| `scrypt` | `ScryptKdf` | `PasswordBasedKdf` | 默认 log_n=17、r=8、p=1（约 128 MiB/次——Web 场景注意 DoS 面，`with_params` 可调） |
+
+### 签名（`Signer`）
+
+| 标识 | 类型 | 说明 |
+|------|------|------|
+| `sm2` | `Sm2Signer` | SM2 签名 / 验签；ZA 默认用户 ID `1234567812345678`（GM/T 0003.2），**验签方必须使用同一 ID** |
+| `ed25519` | `Ed25519Signer` | RFC 8032；私钥 32 字节 seed hex，签名 64 字节定长 |
+| `ecdsa-p256-sha256` | `EcdsaP256Signer` | RFC 6979 确定性签名；私钥裸标量 hex，公钥 SEC1 非压缩 `04‖X‖Y`，签名定长 `r‖s` |
+| `ecdsa-p384-sha384` | `EcdsaP384Signer` | 同上（P-384 / SHA-384，签名 96 字节） |
+| `ecdsa-secp256k1-sha256` | `EcdsaSecp256k1Signer` | 同上（secp256k1；RFC 6979 未收录该曲线向量，KAT 退化为行为测试） |
+
+### 密钥协商（`KeyAgreement`）
+
+| 标识 | 类型 | 说明 |
+|------|------|------|
+| `x25519` | `X25519Agreement` | RFC 7748；拒绝小阶点导致的全零共享秘密 |
+| `ecdh-p256` / `ecdh-p384` / `ecdh-secp256k1` | `EcdhP256` / `EcdhP384` / `EcdhSecp256k1` | 静态 ECDH；共享秘密为原始 x 坐标 hex |
+
+### 密钥封装（`KeyEncapsulation`，后量子）
+
+| 标识 | 类型 | 公钥 ek | 私钥 dk | 密文 ct |
+|------|------|---------|---------|---------|
+| `ml-kem-512` | `MlKem512Kem` | 800 字节 | 1632 字节 | 768 字节 |
+| `ml-kem-768` | `MlKem768Kem` | 1184 字节 | 2400 字节 | 1088 字节 |
+| `ml-kem-1024` | `MlKem1024Kem` | 1568 字节 | 3168 字节 | 1568 字节 |
+
+FIPS 203（ML-KEM）密钥封装：公钥封装 → `(密文, 共享密钥)`（共享密钥 32 字节），私钥解封装 → 共享密钥；均十六进制。密文被篡改或私钥不配对时按标准的**隐式拒绝**语义处理：不报错，返回与封装端不同的伪随机密钥。
 
 SM1、SM7、SM9 不提供实现：调用 `guomi::unavailable::sm1()` 等会得到明确的 `UnsupportedNationalAlgorithm` 错误，便于业务层统一捕获或接入厂商 SDK / 加密机。
 
@@ -387,6 +444,50 @@ match manager.decrypt(&stored) {
 }
 ```
 
+### 8. 扩展算法：签名 / 密钥协商 / 后量子 KEM
+
+扩展实现不进主密钥工厂（工厂默认集与 PHP 对齐面保持不变），在注册表上手动装配即可；密钥、签名、密文与共享密钥均为十六进制字符串。全部扩展实现见各模块文档（`encryption::encryptor` / `hash` / `kdf` / `asymmetric` / `pqc` / `guomi`）。
+
+```rust
+use encryption::asymmetric::Ed25519Signer;
+use encryption::contract::Signer;
+use encryption::manager::SignatureManager;
+use encryption::registry::Registry;
+
+// 手动装配（示例为 Ed25519；SM2 签名是同一个 Signer 契约）
+let mut registry: Registry<Box<dyn Signer>> = Registry::new("signer");
+registry.register(Box::new(Ed25519Signer::new()));
+let manager = SignatureManager::new(registry, "ed25519")?;
+
+let pair = Ed25519Signer::generate_key_pair_hex()?;
+let signature = manager.sign(b"message", &pair.private_key_hex)?;
+manager.verify(b"message", &signature, &pair.public_key_hex)?; // 失败 → VerificationFailed，不区分原因
+```
+
+```rust
+use encryption::asymmetric::X25519Agreement;
+use encryption::contract::KeyAgreement;
+
+// 密钥协商：双方各自用「己方私钥 + 对方公钥」导出同一共享秘密
+let alice = X25519Agreement::generate_key_pair_hex()?;
+let bob = X25519Agreement::generate_key_pair_hex()?;
+let sender = X25519Agreement::new().agree(&alice.private_key_hex, &bob.public_key_hex)?;
+let receiver = X25519Agreement::new().agree(&bob.private_key_hex, &alice.public_key_hex)?;
+assert_eq!(sender, receiver);
+```
+
+```rust
+use encryption::contract::KeyEncapsulation;
+use encryption::pqc::MlKem768Kem;
+
+// 后量子：ML-KEM 密钥封装（FIPS 203）
+let kem = MlKem768Kem::new();
+let (ek_hex, dk_hex) = kem.generate()?;               // (公钥, 私钥)
+let (ct_hex, secret_hex) = kem.encapsulate(&ek_hex)?; // (密文, 共享密钥)
+assert_eq!(kem.decapsulate(&ct_hex, &dk_hex)?, secret_hex);
+// 密文被篡改时：不报错，返回与封装端不同的伪随机密钥（隐式拒绝，标准行为）
+```
+
 ## 框架集成（可选 feature）
 
 [`Guard`](./src/guard.rs) 是框架无关的请求守卫：内部是一把 `Arc<EncryptionManager>`，克隆它就是引用计数递增，**不含任何密钥拷贝**。每个框架一个 opt-in feature，默认构建一个都不拉。
@@ -450,6 +551,7 @@ cargo add encryption-rust --features axum   # 或 actix-web / rocket / poem / sa
 3. 无扩展依赖：Sodium XChaCha20 为纯 Rust 实现，恒可用（原版需 `ext-sodium`）；SM2 无 `ext-gmp` 门槛。
 4. SM2 密文 / 密钥编码以 RustCrypto `sm2` 实现的标准为准（C1C3C2、C1 非压缩），不对齐原版 pohoc/crypto-sm 的布局。
 5. 框架适配为 Rust 生态重写：原生 Rust（`Guard` 请求守卫）+ axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat，对应原版的 Laravel / ThinkPHP / Hyperf / webman 接入方式。
+6. 1.2.0 起提供 PHP 版之外的扩展面：对称（IETF ChaCha20-Poly1305 / AES-GCM-SIV / Camellia / ARIA / Threefish / Kuznyechik / Salsa20）、哈希（SHA-3 / BLAKE2 / BLAKE3 / Streebog / Belt-Hash）、口令派生（Argon2id / scrypt）、RSA-OAEP、ECDSA / Ed25519 / X25519 / ECDH、后量子 ML-KEM，以及 `Signer` / `KeyAgreement` / `KeyEncapsulation` 三个新契约 —— PHP 版无对应物，标识、密钥格式与帧约定由本库自定。
 
 ## 项目目录
 
@@ -457,19 +559,22 @@ cargo add encryption-rust --features axum   # 或 actix-web / rocket / poem / sa
 encryption-rust/
 ├── src/
 │   ├── lib.rs                 crate 文档与模块导出
-│   ├── contract.rs            五种能力契约（trait）与 Identified
+│   ├── contract.rs            八种能力契约（trait）与 Identified
 │   ├── registry.rs            泛型注册表 Registry<T>
-│   ├── manager.rs             五个门面：Encryption / Asymmetric / Hashing / KeyDerivation / PasswordBasedKdf
+│   ├── manager.rs             六个门面：Encryption / Asymmetric / Hashing / KeyDerivation / PasswordBasedKdf / KeyEncapsulation
+│   │   └── manager/asymmetric.rs  另两个门面：Signature / KeyAgreement
 │   ├── factory.rs             主密钥工厂：子密钥派生与注册表装配
 │   ├── guard.rs               请求守卫 Guard（Arc<EncryptionManager>，框架无关）
 │   ├── integrations/          8 个框架适配（各自 feature 门控）
 │   │                          axum / actix / rocket / poem / salvo / warp / bee_rust / ecat
 │   ├── key.rs                 定长密钥材质 Key<N>（Drop 清零、遮蔽 Debug）
 │   ├── error.rs               Error / Result
-│   ├── encryptor/             aes256gcm / aes256cbc / sodium_xchacha20
-│   ├── hash/                  sha256
-│   ├── kdf/                   hkdf_sha256 / pbkdf2_sha256
-│   ├── guomi/                 sm2 / sm3 / sm4 / zuc / unavailable（SM1/SM7/SM9 占位）
+│   ├── asymmetric/            rsa / ecdsa / ecdh / ed25519 / x25519（KeyPairHex 统一在此）
+│   ├── encryptor/             aes256gcm / aes256cbc / sodium_xchacha20 / chacha20poly1305_ietf / aes256gcm_siv / camellia256cbc / aria256cbc / threefish512cbc / kuznyechikcbc / salsa20
+│   ├── hash/                  sha256 / sha3 / blake2 / blake3 / streebog / belt
+│   ├── kdf/                   hkdf_sha256 / pbkdf2_sha256 / argon2 / scrypt
+│   ├── pqc/                   ml_kem（FIPS 203 后量子 KEM）
+│   ├── guomi/                 sm2（加解密 + 签名）/ sm3 / sm4 / sm4_gcm / zuc / zuc256 / unavailable（SM1/SM7/SM9 占位）
 │   ├── internal/              hex 工具与 etm.rs（CBC/SM4/ZUC 共用的 encrypt-then-MAC）
 │   └── pet.rs                 项目宠物 Locky（NAME / TAGLINE / ASCII / SVG）
 ├── tests/
@@ -530,7 +635,7 @@ cargo run --example quickstart
 cargo bench --bench crypto_bench # criterion：本库封装 vs 裸 crate 的开销
 ```
 
-覆盖：各算法往返与篡改必败、跨算法不互通、工厂子密钥独立性与校验、注册表 / 门面行为、SM2 密钥路径、宠物常量、各框架的守卫提取（含「忘注册 → 500」路径），以及[跨实现 KAT](./tests/known_answer.rs)（OpenSSL / libsodium 生成的参考密文）。
+覆盖：各算法往返与篡改必败、跨算法不互通、工厂子密钥独立性与校验、注册表 / 门面行为、SM2 密钥路径、宠物常量、各框架的守卫提取（含「忘注册 → 500」路径），以及[跨实现 KAT](./tests/known_answer.rs)（OpenSSL / libsodium 生成的参考密文）。1.2.0 起的扩展算法各自内联官方 KAT（RFC 8439 / 8452 / 6979 / 8032 / 7748 / 5903 / 9106 / 7914、FIPS 202 / 203、GOST 与 STB 标准向量等）。
 
 ## 参考原项目
 

@@ -10,7 +10,8 @@
 //! | `ml-kem-768`    | 2368 位（1184 B）| 4800 位（2400 B）| 2176 位（1088 B）| 64 位（32 B）|
 //! | `ml-kem-1024`   | 3136 位（1568 B）| 6336 位（3168 B）| 3136 位（1568 B）| 64 位（32 B）|
 //!
-//! 错误映射：十六进制非法 → [`Error::InvalidHex`]；公钥 / 私钥字节数或结构不符 →
+//! 错误映射：十六进制非法 → [`Error::InvalidHex`]；公钥 / 私钥字节数不符，或公钥
+//! （含私钥内嵌的公钥）未通过 FIPS 203 §7.2 的 modulus check（t̂ 存在 ≥ q 的系数）→
 //! [`Error::InvalidKey`]；密文字节数不符 → [`Error::InvalidKeyLength`]。
 //!
 //! **隐式拒绝**：密文被篡改（或私钥与公钥不配对）时，解封装**不报错**，而是返回
@@ -153,10 +154,12 @@ fn encapsulate_hex<K: KemCore>(
     public_key_hex: &str,
     label: &'static str,
 ) -> Result<(String, String)> {
-    let encapsulation_key = K::EncapsulationKey::from_bytes(&parse_encoded::<K::EncapsulationKey>(
-        public_key_hex,
-        label,
-    )?);
+    let bytes = hex_decode(public_key_hex)?;
+    let encoded = Encoded::<K::EncapsulationKey>::try_from(bytes.as_slice())
+        .map_err(|_| Error::InvalidKey { label })?;
+    // 长度之外还要过 FIPS 203 §7.2 的 modulus check（ml-kem 0.2.3 只查长度）。
+    modulus_check_ek(&bytes, label)?;
+    let encapsulation_key = K::EncapsulationKey::from_bytes(&encoded);
     let (ciphertext, shared_key) = encapsulation_key
         .encapsulate(&mut OsRng)
         .map_err(|_| Error::EncryptionFailed { label })?;
@@ -173,10 +176,15 @@ fn decapsulate_hex<K: KemCore>(
     label: &'static str,
     ciphertext_label: &'static str,
 ) -> Result<String> {
-    let decapsulation_key = K::DecapsulationKey::from_bytes(&parse_encoded::<K::DecapsulationKey>(
-        private_key_hex,
-        label,
-    )?);
+    let dk_bytes = hex_decode(private_key_hex)?;
+    let encoded = Encoded::<K::DecapsulationKey>::try_from(dk_bytes.as_slice())
+        .map_err(|_| Error::InvalidKey { label })?;
+    // dk = dkPKE ‖ ek ‖ H(ek) ‖ z：对 dk 内嵌的 ek 执行与封装端相同的 modulus
+    // check（FIPS 203 §7.3 的要求）。
+    let ek_size = <K::EncapsulationKey as EncodedSizeUser>::EncodedSize::USIZE;
+    let embedded_ek = &dk_bytes[dk_bytes.len() - 64 - ek_size..dk_bytes.len() - 64];
+    modulus_check_ek(embedded_ek, label)?;
+    let decapsulation_key = K::DecapsulationKey::from_bytes(&encoded);
     let ciphertext = parse_ciphertext::<K>(ciphertext_hex, ciphertext_label)?;
     let shared_key = decapsulation_key
         .decapsulate(&ciphertext)
@@ -185,7 +193,8 @@ fn decapsulate_hex<K: KemCore>(
 }
 
 /// 解析定长编码（公钥 / 私钥）：十六进制非法 → [`Error::InvalidHex`]；
-/// 字节数或结构不符 → [`Error::InvalidKey`]。
+/// 字节数或结构不符 → [`Error::InvalidKey`]。仅测试（KAT 向量装载）使用。
+#[cfg(test)]
 fn parse_encoded<T: EncodedSizeUser>(hex: &str, label: &'static str) -> Result<Encoded<T>> {
     let bytes = hex_decode(hex)?;
     Encoded::<T>::try_from(bytes.as_slice()).map_err(|_| Error::InvalidKey { label })
@@ -199,6 +208,25 @@ fn parse_ciphertext<K: KemCore>(hex: &str, label: &'static str) -> Result<Cipher
         expected: <K::CiphertextSize as Unsigned>::USIZE,
         got: bytes.len(),
     })
+}
+
+/// FIPS 203 §7.2 的 modulus check：`t̂` 的每个系数必须 < q（3329）。
+///
+/// `ek = ByteEncode₁₂(t̂) ‖ ρ`（ρ 为末尾 32 字节，不参与校验）。直接传入封装
+/// 接口的 ek 可能来自外部 / 不可信来源；非规范编码（系数 ≥ q）在 ml-kem 0.2.3
+/// 中不会被拒绝，本库在封装、以及解封装前（对 dk 内嵌的 ek）自行校验。系数按
+/// FIPS 203 §4.2.1 ByteDecode₁₂ 的 12 位小端打包解出。
+fn modulus_check_ek(ek: &[u8], label: &'static str) -> Result<()> {
+    const Q: u16 = 3329;
+    let (t_hat, _rho) = ek.split_at(ek.len() - 32);
+    for chunk in t_hat.as_chunks::<3>().0 {
+        let a0 = u16::from(chunk[0]) | (u16::from(chunk[1] & 0x0f) << 8);
+        let a1 = u16::from(chunk[1] >> 4) | (u16::from(chunk[2]) << 4);
+        if a0 >= Q || a1 >= Q {
+            return Err(Error::InvalidKey { label });
+        }
+    }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -422,6 +450,62 @@ mod tests {
                 expected: 1088,
                 got: 1,
             }
+        );
+    }
+
+    /// 隐式拒绝的强度：不只末位 nibble——中段篡改与全随机密文同样「成功返回但密钥不同」。
+    #[test]
+    fn arbitrary_ciphertext_corruption_is_implicitly_rejected() {
+        use rand_core::RngCore;
+
+        let kem = MlKem768Kem::new();
+        let (ek, dk) = kem.generate().unwrap();
+        let (ct, sender) = kem.encapsulate(&ek).unwrap();
+
+        // 中段一字节翻转。
+        let mut mid = ct.clone().into_bytes();
+        let mid_idx = mid.len() / 2;
+        mid[mid_idx] = if mid[mid_idx] == b'0' { b'1' } else { b'0' };
+        let mid = String::from_utf8(mid).unwrap();
+        let receiver = kem.decapsulate(&mid, &dk).unwrap();
+        assert_eq!(receiver.len(), 64);
+        assert_ne!(receiver, sender);
+
+        // 同长度全随机密文：长度合法 → 走隐式拒绝路径（Ok 且密钥不同）。
+        let mut random = vec![0u8; ct.len() / 2];
+        OsRng.fill_bytes(&mut random);
+        let receiver_random = kem.decapsulate(&hex_encode(&random), &dk).unwrap();
+        assert_ne!(receiver_random, sender);
+    }
+
+    /// FIPS 203 §7.2 modulus check：ek 的 t̂ 系数 ≥ q 的非规范编码必须被拒——
+    /// 封装端与解封装端（dk 内嵌 ek）都要拦住。ml-kem 0.2.3 自身只查长度。
+    #[test]
+    fn non_canonical_ek_fails_modulus_check() {
+        const LABEL: &str = "ML-KEM-768";
+        let kem = MlKem768Kem::new();
+        let (ek, dk) = kem.generate().unwrap();
+
+        // 把 ek 的第一个 12 位系数改成 0xFFF（4095 ≥ q = 3329）。
+        let mut ek_bytes = hex_decode(&ek).unwrap();
+        ek_bytes[0] = 0xff;
+        ek_bytes[1] = 0xff;
+        ek_bytes[2] = 0xff;
+        assert_eq!(
+            kem.encapsulate(&hex_encode(&ek_bytes)).unwrap_err(),
+            Error::InvalidKey { label: LABEL }
+        );
+
+        // dk = dkPKE(1152) ‖ ek(1184) ‖ H(ek)(32) ‖ z(32)：内嵌 ek 同样被检查。
+        let mut dk_bytes = hex_decode(&dk).unwrap();
+        let ek_offset = dk_bytes.len() - 64 - 1184;
+        dk_bytes[ek_offset] = 0xff;
+        dk_bytes[ek_offset + 1] = 0xff;
+        dk_bytes[ek_offset + 2] = 0xff;
+        let (ct, _) = kem.encapsulate(&ek).unwrap();
+        assert_eq!(
+            kem.decapsulate(&ct, &hex_encode(&dk_bytes)).unwrap_err(),
+            Error::InvalidKey { label: LABEL }
         );
     }
 

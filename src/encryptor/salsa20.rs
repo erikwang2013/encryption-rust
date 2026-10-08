@@ -80,10 +80,12 @@ mod tests {
             .collect()
     }
 
-    /// eSTREAM/ECRYPT 验证向量（Salsa20/20，256 位密钥、8 字节 nonce；与 salsa20
-    /// crate 自带测试一致）：直接调用裸密钥流 —— 封装层的往返测试抓不出
-    /// 「密钥流整体错位」。第一条只覆盖计数块 0；第二条 256 字节跨 4 个计数块，
-    /// 锚定 64 位计数器的字节序与进位。
+    /// Salsa20/20（256 位密钥、8 字节 nonce）官方向量：直接调用裸密钥流 ——
+    /// 封装层的往返测试抓不出「密钥流整体错位」。第一条 = eSTREAM/ECRYPT 验证
+    /// 向量（256-bit Set 1 vector 0，只覆盖计数块 0）；第二条 = Bernstein
+    /// 《The Salsa20 family of stream ciphers》§4.1 规范向量（256 字节跨 4 个
+    /// 计数块，锚定 64 位计数器的字节序与进位）。两条均与 salsa20 crate 自带
+    /// 测试一致，第二条数值另经独立 Python 复算核对。
     #[test]
     fn bare_keystream_matches_estream_vectors() {
         let key = unhex("8000000000000000000000000000000000000000000000000000000000000000");
