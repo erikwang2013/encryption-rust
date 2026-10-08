@@ -84,7 +84,7 @@ mod tests {
     /// 封装层的往返测试抓不出「密钥流整体错位」。第一条 = eSTREAM/ECRYPT 验证
     /// 向量（256-bit Set 1 vector 0，只覆盖计数块 0）；第二条 = Bernstein
     /// 《The Salsa20 family of stream ciphers》§4.1 规范向量（256 字节跨 4 个
-    /// 计数块，锚定 64 位计数器的字节序与进位）。两条均与 salsa20 crate 自带
+    /// 计数块，覆盖计数器的字节序与跨块递增）。两条均与 salsa20 crate 自带
     /// 测试一致，第二条数值另经独立 Python 复算核对。
     #[test]
     fn bare_keystream_matches_estream_vectors() {

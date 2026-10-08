@@ -64,9 +64,9 @@ impl PasswordBasedKdf for Argon2Kdf {
     fn derive_from_password(&self, password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
         if salt.len() < MIN_SALT_LEN {
             // 选 InvalidKeyLength：既有错误集中最贴近的变体 —— 它表达「某输入的
-            // 长度不满足算法要求」，expected/got 能直接指出盐值过短；Display 的
-            // "exactly" 措辞与「至少 8」略有出入，但仅在实际过短时出现，不会把
-            // 合法长度误报为非法。
+            // 长度不满足算法要求」，expected/got 能直接指出盐值过短；Display 现为
+            // 「{label} length must be {expected} (got {got})」，未含「至少」语义，
+            // 与 ≥8 的实际约束略有出入，但仅在实际过短时出现，不会把合法长度误报为非法。
             return Err(Error::InvalidKeyLength {
                 label: "argon2 salt",
                 expected: MIN_SALT_LEN,

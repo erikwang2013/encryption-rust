@@ -8,9 +8,9 @@
 //! - 签名：64 字节定长 hex（128 位）。
 //!
 //! 签名不消耗随机源（Ed25519 本身确定性）；验签走 ed25519-dalek 的
-//! `verify_strict`：RFC 8032 判定之外，额外拒绝**小阶公钥**与非规范 R 编码——
-//! 公钥若来自不可信来源，普通 `verify` 允许小阶公钥使任意消息「验签通过」，
-//! 本库按防御姿态选择严格模式（诚实签名方不受影响）。
+//! `verify_strict`：RFC 8032 判定之外，额外拒绝**小阶公钥、小阶 R** 与非规范
+//! R 编码——公钥若来自不可信来源，普通 `verify` 允许小阶公钥使任意消息
+//! 「验签通过」，本库按防御姿态选择严格模式（诚实签名方不受影响）。
 
 use ed25519_dalek::{Signature, Signer as _, SigningKey, VerifyingKey};
 use rand_core::OsRng;
@@ -90,6 +90,22 @@ impl Signer for Ed25519Signer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// 小阶公钥（identity 压缩点 `01 00…00`）必须被拒绝：普通 `verify` 下它会令
+    /// 任意消息「验签通过」，`verify_strict` 拦住（本测试防回归回普通 verify）。
+    #[test]
+    fn small_order_public_key_is_rejected() {
+        const IDENTITY_PK: &str =
+            "0100000000000000000000000000000000000000000000000000000000000000";
+        let signer = Ed25519Signer::new();
+        let dummy_signature = "00".repeat(64);
+        assert_eq!(
+            signer
+                .verify(b"any message", &dummy_signature, IDENTITY_PK)
+                .unwrap_err(),
+            Error::VerificationFailed { label: LABEL }
+        );
+    }
 
     /// KAT：RFC 8032 §7.1 TEST 1 —— 空消息。
     /// 向量出处 RFC 8032 §7.1（seed / 公钥 / 签名均为 RFC 原文定值）。

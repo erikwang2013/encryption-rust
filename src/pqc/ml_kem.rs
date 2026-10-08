@@ -10,9 +10,10 @@
 //! | `ml-kem-768`    | 2368 位（1184 B）| 4800 位（2400 B）| 2176 位（1088 B）| 64 位（32 B）|
 //! | `ml-kem-1024`   | 3136 位（1568 B）| 6336 位（3168 B）| 3136 位（1568 B）| 64 位（32 B）|
 //!
-//! 错误映射：十六进制非法 → [`Error::InvalidHex`]；公钥 / 私钥字节数不符，或公钥
-//! （含私钥内嵌的公钥）未通过 FIPS 203 §7.2 的 modulus check（t̂ 存在 ≥ q 的系数）→
-//! [`Error::InvalidKey`]；密文字节数不符 → [`Error::InvalidKeyLength`]。
+//! 错误映射：十六进制非法 → [`Error::InvalidHex`]；公钥 / 私钥字节数不符、私钥的
+//! §7.3 hash check 不符（H(内嵌 ek) ≠ 存储的 h）、或公钥（含私钥内嵌的公钥）未通过
+//! §7.2 风格 modulus check（t̂ 存在 ≥ q 的系数）→ [`Error::InvalidKey`]；密文字节数
+//! 不符 → [`Error::InvalidKeyLength`]。
 //!
 //! **隐式拒绝**：密文被篡改（或私钥与公钥不配对）时，解封装**不报错**，而是返回
 //! 一个与封装端不同的伪随机共享密钥（FIPS 203 §7.3）。这是标准行为，调用方应以
@@ -179,10 +180,18 @@ fn decapsulate_hex<K: KemCore>(
     let dk_bytes = hex_decode(private_key_hex)?;
     let encoded = Encoded::<K::DecapsulationKey>::try_from(dk_bytes.as_slice())
         .map_err(|_| Error::InvalidKey { label })?;
-    // dk = dkPKE ‖ ek ‖ H(ek) ‖ z：对 dk 内嵌的 ek 执行与封装端相同的 modulus
-    // check（FIPS 203 §7.3 的要求）。
+    // dk = dkPKE ‖ ek ‖ H(ek) ‖ z。两道检查：
+    // 1) §7.3 的 hash check（解封装密钥输入检查）：H(内嵌 ek) == 尾部存储的 h
+    //    （ml-kem 0.2.3 不做此检查，上游留有 XXX 注释；h 由公开 ek 派生，
+    //    非常量时间比较无信息泄露面）；
+    // 2) 防御性扩展：§7.2 风格的 modulus check 顺带用于内嵌 ek —— §7.3 的检查
+    //    对象是 H(ek) 哈希，拦不住非规范 t̂，此扩展补上这一缺口。
     let ek_size = <K::EncapsulationKey as EncodedSizeUser>::EncodedSize::USIZE;
     let embedded_ek = &dk_bytes[dk_bytes.len() - 64 - ek_size..dk_bytes.len() - 64];
+    let stored_h = &dk_bytes[dk_bytes.len() - 64..dk_bytes.len() - 32];
+    if sha3_256(embedded_ek).as_slice() != stored_h {
+        return Err(Error::InvalidKey { label });
+    }
     modulus_check_ek(embedded_ek, label)?;
     let decapsulation_key = K::DecapsulationKey::from_bytes(&encoded);
     let ciphertext = parse_ciphertext::<K>(ciphertext_hex, ciphertext_label)?;
@@ -208,6 +217,12 @@ fn parse_ciphertext<K: KemCore>(hex: &str, label: &'static str) -> Result<Cipher
         expected: <K::CiphertextSize as Unsigned>::USIZE,
         got: bytes.len(),
     })
+}
+
+/// SHA3-256（FIPS 203 §7.3 hash check 用；与 ml-kem 内部同源，digest 0.10 代际）。
+fn sha3_256(data: &[u8]) -> [u8; 32] {
+    use sha3::{Digest, Sha3_256};
+    Sha3_256::digest(data).into()
 }
 
 /// FIPS 203 §7.2 的 modulus check：`t̂` 的每个系数必须 < q（3329）。
@@ -503,6 +518,25 @@ mod tests {
         dk_bytes[ek_offset + 1] = 0xff;
         dk_bytes[ek_offset + 2] = 0xff;
         let (ct, _) = kem.encapsulate(&ek).unwrap();
+        assert_eq!(
+            kem.decapsulate(&ct, &hex_encode(&dk_bytes)).unwrap_err(),
+            Error::InvalidKey { label: LABEL }
+        );
+    }
+
+    /// §7.3 hash check：dk 尾部存储的 h 与 H(内嵌 ek) 不符时必须拒绝
+    ///（ml-kem 0.2.3 不做此检查，本库补上）。
+    #[test]
+    fn corrupted_hash_in_dk_fails_hash_check() {
+        const LABEL: &str = "ML-KEM-768";
+        let kem = MlKem768Kem::new();
+        let (ek, dk) = kem.generate().unwrap();
+        let (ct, _) = kem.encapsulate(&ek).unwrap();
+
+        // dk = dkPKE ‖ ek ‖ h(32) ‖ z(32)：翻转 h 的一个字节。
+        let mut dk_bytes = hex_decode(&dk).unwrap();
+        let h_idx = dk_bytes.len() - 64;
+        dk_bytes[h_idx] ^= 0x01;
         assert_eq!(
             kem.decapsulate(&ct, &hex_encode(&dk_bytes)).unwrap_err(),
             Error::InvalidKey { label: LABEL }
