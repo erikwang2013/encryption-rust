@@ -86,6 +86,13 @@ sm2 = { version = "0.14", default-features = false, features = [
 sm3 = "0.5"                      # 国密 SM3 哈希（与 sm2 内部同版本，避免重复依赖）
 sm4 = { version = "0.5", features = ["zeroize"] }  # 国密 SM4-CBC（含 zeroize）
 zuc = "0.4"                      # ZUC-128 流密码
+# 以下五个同为 cipher 0.4 代际（见上方代际说明）；有 zeroize feature 的一律打开，
+# 与 aes / sm4 的处理保持一致。
+camellia = { version = "0.1.0", features = ["zeroize"] }  # camellia-256-cbc-hmac 的底层块密码
+aria = { version = "0.1.0", features = ["zeroize"] }      # aria-256-cbc-hmac 的底层块密码
+threefish = "0.5.2"              # threefish-512-cbc-hmac 的底层块密码（crate 内置 zeroize）
+kuznyechik = { version = "0.8.2", features = ["zeroize"] }  # kuznyechik-256-cbc-hmac 的底层块密码
+salsa20 = { version = "0.10.2", features = ["zeroize"] }  # salsa20 流密码（crate 默认 std）
 # SM2 的密钥生成与加密需要外部随机源；SysRng 即 rand_core 0.10 体系的操作系统随机
 getrandom = { version = "0.4", features = ["sys_rng"] }
 
