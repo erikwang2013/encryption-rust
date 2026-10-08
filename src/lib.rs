@@ -9,6 +9,7 @@
 //!
 //! crate 采用 Rust 独立格式：密文不与 PHP 版字节级互通（见 README「与原版的差异」）。
 
+pub mod asymmetric;
 pub mod contract;
 pub mod encryptor;
 pub mod error;
