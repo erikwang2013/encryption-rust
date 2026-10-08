@@ -81,6 +81,10 @@ chacha20 = { version = "0.9", features = ["zeroize"] }
 poly1305 = { version = "0.8", features = ["zeroize"] }
 hkdf = "0.12"                    # hkdf-sha256（RFC 5869）
 pbkdf2 = "0.12"                  # pbkdf2-sha256
+# 口令派生：argon2 的 zeroize feature 让内部状态（含 secret）在释放时清零，
+# 与 Key<N> / 块密码的 Drop 清零闭环一致。两者均属 digest 0.10 代际，不引入新代际。
+argon2 = { version = "0.5.3", features = ["zeroize"] }  # argon2id（RFC 9106）
+scrypt = "0.11.0"                # scrypt（RFC 7914）
 # Guard::from_env 解析 base64 主密钥；文档示例也用它把密文转文本
 base64 = "0.22"
 
