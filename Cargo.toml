@@ -114,6 +114,13 @@ rsa = { version = "0.9.10", features = ["getrandom"] }
 # SM2 的密钥生成与加密需要外部随机源；SysRng 即 rand_core 0.10 体系的操作系统随机
 getrandom = { version = "0.4", features = ["sys_rng"] }
 
+# 后量子 KEM（FIPS 203 ML-KEM）。代际钉死 0.2.3：0.3.x 会拉 sha3 0.11 新代际，
+# 与上面「digest 0.10」的统一策略冲突（本 crate 自带 sha3 0.10.9 / rand_core 0.6）。
+# deterministic：开启从种子生成密钥对 / 确定性封装，供 NIST ACVP 定值向量（KAT）
+# 测试使用；zeroize：解析出的私钥与内部状态在 Drop 时清零（与上面各 zeroize
+# feature 同款做法）。
+ml-kem = { version = "0.2.3", features = ["deterministic", "zeroize"] }
+
 # ── 框架集成（全部 opt-in）────────────────────────────────────────────────
 # 一律保留各框架的默认 feature：适配层要用的是它们的提取器 / 守卫 / 路由核心，
 # 而那几块常常挂在默认 feature 上。反正这些依赖只在用户主动开启对应 feature

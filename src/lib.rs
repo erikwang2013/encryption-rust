@@ -21,6 +21,7 @@ pub mod integrations;
 pub mod kdf;
 pub mod key;
 pub mod manager;
+pub mod pqc;
 pub mod registry;
 
 /// 项目宠物「Locky」：NAME / TAGLINE / ASCII / SVG。

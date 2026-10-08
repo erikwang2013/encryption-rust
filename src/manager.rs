@@ -6,7 +6,9 @@
 //! `KeyDerivationManager`、`PasswordBasedKdfManager`。每个门面提供「用默认算法」与
 //! 「显式指定 `*_with(identifier, ...)`」两组方法。
 
-use crate::contract::{AsymmetricCipher, Hasher, KeyDerivation, PasswordBasedKdf, SymmetricCipher};
+use crate::contract::{
+    AsymmetricCipher, Hasher, KeyDerivation, KeyEncapsulation, PasswordBasedKdf, SymmetricCipher,
+};
 use crate::error::{Error, Result};
 use crate::registry::Registry;
 
@@ -353,6 +355,92 @@ impl PasswordBasedKdfManager {
         check_default(
             self.registry.has(&identifier),
             "password-based kdf",
+            &identifier,
+        )?;
+        self.default_identifier = identifier;
+        Ok(())
+    }
+}
+
+/// 密钥封装（KEM）门面。
+#[derive(Debug)]
+pub struct KeyEncapsulationManager {
+    registry: Registry<Box<dyn KeyEncapsulation>>,
+    default_identifier: String,
+}
+
+impl KeyEncapsulationManager {
+    pub fn new(
+        registry: Registry<Box<dyn KeyEncapsulation>>,
+        default_identifier: impl Into<String>,
+    ) -> Result<Self> {
+        let default_identifier = default_identifier.into();
+        check_default(
+            registry.has(&default_identifier),
+            "key encapsulation",
+            &default_identifier,
+        )?;
+        Ok(Self {
+            registry,
+            default_identifier,
+        })
+    }
+
+    /// 生成密钥对，返回 `(公钥 hex, 私钥 hex)`。
+    pub fn generate(&self) -> Result<(String, String)> {
+        self.generate_with(&self.default_identifier)
+    }
+
+    pub fn generate_with(&self, identifier: &str) -> Result<(String, String)> {
+        self.registry.get(identifier)?.generate()
+    }
+
+    /// 用公钥封装，返回 `(密文 hex, 共享密钥 hex)`。
+    pub fn encapsulate(&self, public_key_hex: &str) -> Result<(String, String)> {
+        self.encapsulate_with(&self.default_identifier, public_key_hex)
+    }
+
+    pub fn encapsulate_with(
+        &self,
+        identifier: &str,
+        public_key_hex: &str,
+    ) -> Result<(String, String)> {
+        self.registry.get(identifier)?.encapsulate(public_key_hex)
+    }
+
+    /// 用私钥解封装，返回共享密钥 hex（非法密文按隐式拒绝语义不报错）。
+    pub fn decapsulate(&self, ciphertext_hex: &str, private_key_hex: &str) -> Result<String> {
+        self.decapsulate_with(&self.default_identifier, ciphertext_hex, private_key_hex)
+    }
+
+    pub fn decapsulate_with(
+        &self,
+        identifier: &str,
+        ciphertext_hex: &str,
+        private_key_hex: &str,
+    ) -> Result<String> {
+        self.registry
+            .get(identifier)?
+            .decapsulate(ciphertext_hex, private_key_hex)
+    }
+
+    pub fn registry(&self) -> &Registry<Box<dyn KeyEncapsulation>> {
+        &self.registry
+    }
+
+    pub fn registry_mut(&mut self) -> &mut Registry<Box<dyn KeyEncapsulation>> {
+        &mut self.registry
+    }
+
+    pub fn default_identifier(&self) -> &str {
+        &self.default_identifier
+    }
+
+    pub fn set_default_identifier(&mut self, identifier: impl Into<String>) -> Result<()> {
+        let identifier = identifier.into();
+        check_default(
+            self.registry.has(&identifier),
+            "key encapsulation",
             &identifier,
         )?;
         self.default_identifier = identifier;

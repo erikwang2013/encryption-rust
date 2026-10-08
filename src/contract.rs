@@ -56,3 +56,18 @@ pub trait PasswordBasedKdf: Identified + Send + Sync {
     /// `salt`：随机盐（建议每用户 / 每密钥唯一）。
     fn derive_from_password(&self, password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>>;
 }
+
+/// 密钥封装（KEM，FIPS 203 ML-KEM）：公钥封装 → (密文, 共享密钥)；私钥解封装。
+/// 公钥、私钥、密文与共享密钥均为十六进制。
+pub trait KeyEncapsulation: Identified + Send + Sync {
+    /// 生成密钥对，返回 `(公钥 hex, 私钥 hex)`。
+    fn generate(&self) -> Result<(String, String)>;
+
+    /// 用公钥封装，返回 `(密文 hex, 共享密钥 hex)`。
+    fn encapsulate(&self, public_key_hex: &str) -> Result<(String, String)>;
+
+    /// 用私钥解封装，返回共享密钥 hex。
+    /// 注意：ML-KEM 对非法密文执行隐式拒绝（不报错，返回与封装端不同的
+    /// 伪随机密钥），这是标准行为，不视为错误。
+    fn decapsulate(&self, ciphertext_hex: &str, private_key_hex: &str) -> Result<String>;
+}
