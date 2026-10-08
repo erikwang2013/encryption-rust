@@ -33,14 +33,12 @@ impl ScryptKdf {
 
     /// 自定义参数：`N = 2^log_n`（内存与 CPU 随 N 线性增长），`r` 为块大小，
     /// `p` 为并行度。参数非法（如 log_n ≥ 64、r = 0、p = 0）返回
-    /// [`Error::InvalidIterations`] —— error.rs 属契约层，既有错误集中它是
-    /// 唯一表达「KDF 成本参数非法」的变体，此处借用（Display 文案提及 PBKDF2
-    /// 是既有固有限制）。
+    /// [`Error::InvalidKdfParams`]。
     pub fn with_params(log_n: u8, r: u32, p: u32) -> Result<Self> {
         // Params 的 len 字段只在 password-hash 表示层使用，裸 scrypt() 不校验它，
         // 派生长度以 derive_from_password 的 length 参数为准，这里填推荐值。
         let params = Params::new(log_n, r, p, Params::RECOMMENDED_LEN)
-            .map_err(|_| Error::InvalidIterations)?;
+            .map_err(|_| Error::InvalidKdfParams { label: "scrypt" })?;
         Ok(Self { params })
     }
 
@@ -171,15 +169,15 @@ mod tests {
     fn invalid_params_are_rejected() {
         assert_eq!(
             ScryptKdf::with_params(64, 1, 1).unwrap_err(),
-            Error::InvalidIterations
+            Error::InvalidKdfParams { label: "scrypt" }
         );
         assert_eq!(
             ScryptKdf::with_params(4, 0, 1).unwrap_err(),
-            Error::InvalidIterations
+            Error::InvalidKdfParams { label: "scrypt" }
         );
         assert_eq!(
             ScryptKdf::with_params(4, 1, 0).unwrap_err(),
-            Error::InvalidIterations
+            Error::InvalidKdfParams { label: "scrypt" }
         );
     }
 }

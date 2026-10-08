@@ -37,12 +37,10 @@ impl Argon2Kdf {
 
     /// 自定义参数：`m_cost` 单位为 KiB（内存），`t_cost` 为迭代次数，`p_cost`
     /// 为并行度。参数非法（如 m < 8×p、t = 0、p = 0）返回
-    /// [`Error::InvalidIterations`] —— error.rs 属契约层，既有错误集中它是
-    /// 唯一表达「KDF 成本参数非法」的变体，此处借用（Display 文案提及 PBKDF2
-    /// 是既有固有限制）。
+    /// [`Error::InvalidKdfParams`]。
     pub fn with_params(m_cost: u32, t_cost: u32, p_cost: u32) -> Result<Self> {
-        let params =
-            Params::new(m_cost, t_cost, p_cost, None).map_err(|_| Error::InvalidIterations)?;
+        let params = Params::new(m_cost, t_cost, p_cost, None)
+            .map_err(|_| Error::InvalidKdfParams { label: "Argon2" })?;
         Ok(Self {
             inner: Argon2::new(Algorithm::Argon2id, Version::V0x13, params),
         })
@@ -235,15 +233,15 @@ mod tests {
     fn invalid_params_are_rejected() {
         assert_eq!(
             Argon2Kdf::with_params(4, 3, 4).unwrap_err(),
-            Error::InvalidIterations
+            Error::InvalidKdfParams { label: "Argon2" }
         );
         assert_eq!(
             Argon2Kdf::with_params(32, 0, 4).unwrap_err(),
-            Error::InvalidIterations
+            Error::InvalidKdfParams { label: "Argon2" }
         );
         assert_eq!(
             Argon2Kdf::with_params(32, 3, 0).unwrap_err(),
-            Error::InvalidIterations
+            Error::InvalidKdfParams { label: "Argon2" }
         );
     }
 }

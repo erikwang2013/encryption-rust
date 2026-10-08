@@ -42,6 +42,8 @@ pub enum Error {
     InvalidKey { label: &'static str },
     /// PBKDF2 迭代次数必须为正。
     InvalidIterations,
+    /// KDF 的成本参数非法（如 Argon2 的 m / t / p、scrypt 的 log_n / r / p）。
+    InvalidKdfParams { label: &'static str },
     /// 请求的输出长度非法（为 0 或超过算法上限）。
     InvalidOutputLength { requested: usize, max: usize },
     /// 十六进制字符串非法（奇数长度或含非十六进制字符）。
@@ -83,6 +85,7 @@ impl fmt::Display for Error {
             }
             Error::InvalidKey { label } => write!(f, "Invalid {label} key."),
             Error::InvalidIterations => write!(f, "PBKDF2 iterations must be positive."),
+            Error::InvalidKdfParams { label } => write!(f, "Invalid {label} parameters."),
             Error::InvalidOutputLength { requested, max } => {
                 if *requested == 0 {
                     write!(f, "Output length must be positive.")
