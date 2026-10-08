@@ -92,12 +92,19 @@ base64 = "0.22"
 sm2 = { version = "0.14", default-features = false, features = [
     "arithmetic",        # 椭圆曲线运算（加解密的前提）
     "pke",               # 公钥加密（C1C3C2 / C1C2C3）
+    "dsa",               # SM2DSA 签名 / 验签（src/guomi/sm2.rs 的 Sm2Signer）
     "alloc",             # encrypt/decrypt 返回 Vec<u8>
     "std",
     "precomputed-tables", # 基点预计算表，加速密钥生成与加解密
 ] }                  # 国密 SM2 非对称加解密
 sm3 = "0.5"                      # 国密 SM3 哈希（与 sm2 内部同版本，避免重复依赖）
 sm4 = { version = "0.5", features = ["zeroize"] }  # 国密 SM4-CBC（含 zeroize）
+# SM4-GCM（src/guomi/sm4_gcm.rs）不自造 GCM：按 GB/T 38636-2020 附录 A 的
+# GCM-AEK 手工组装 —— ghash 出通用哈希 GHASH，ctr 出 inc32 计数器流。
+# 版本必须钉在 ghash 0.5 / ctr 0.9 代际：这正是 aes-gcm 0.10 内部使用的同款
+# （universal-hash 0.5 / cipher 0.4），跨代际（0.6 / 0.10）会 trait 不匹配。
+ghash = "0.5.1"                  # GHASH（GF(2^128) 通用哈希，GCM 的认证部分）
+ctr = "0.9"                      # CTR 流（SM4-GCM 的机密性部分，inc32 计数器）
 zuc = "0.4"                      # ZUC-128 流密码
 # 以下五个同为 cipher 0.4 代际（见上方代际说明）；有 zeroize feature 的一律打开，
 # 与 aes / sm4 的处理保持一致。

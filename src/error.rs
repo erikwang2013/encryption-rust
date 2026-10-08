@@ -27,6 +27,10 @@ pub enum Error {
     DecryptionFailed { label: &'static str },
     /// 加密失败（一般不应发生）。
     EncryptionFailed { label: &'static str },
+    /// 签名失败（一般不应发生）。
+    SignFailed { label: &'static str },
+    /// 验签失败：签名不对或消息被改，没有第三种解释。
+    VerificationFailed { label: &'static str },
     /// 标识未注册到注册表。
     UnknownIdentifier {
         kind: &'static str,
@@ -67,6 +71,10 @@ impl fmt::Display for Error {
             Error::MacVerificationFailed { label } => write!(f, "{label} MAC verification failed."),
             Error::DecryptionFailed { label } => write!(f, "{label} decryption failed."),
             Error::EncryptionFailed { label } => write!(f, "{label} encryption failed."),
+            Error::SignFailed { label } => write!(f, "{label} signing failed."),
+            Error::VerificationFailed { label } => {
+                write!(f, "{label} signature verification failed.")
+            }
             Error::UnknownIdentifier { kind, identifier } => {
                 write!(f, "Unknown {kind} identifier \"{identifier}\".")
             }

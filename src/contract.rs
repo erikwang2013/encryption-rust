@@ -57,6 +57,16 @@ pub trait PasswordBasedKdf: Identified + Send + Sync {
     fn derive_from_password(&self, password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>>;
 }
 
+/// 签名：消息签名与验签。密钥与签名均为十六进制，格式由实现决定
+/// （本项目内统一：ECDSA / SM2 为定长 `r‖s`，Ed25519 为 64 字节定长）。
+pub trait Signer: Identified + Send + Sync {
+    /// 对消息签名，返回十六进制签名（失败不为原因分类）。
+    fn sign(&self, message: &[u8], private_key_hex: &str) -> Result<String>;
+
+    /// 验签；失败与格式错误一律 [`Error::VerificationFailed`]（不区分原因）。
+    fn verify(&self, message: &[u8], signature_hex: &str, public_key_hex: &str) -> Result<()>;
+}
+
 /// 密钥封装（KEM，FIPS 203 ML-KEM）：公钥封装 → (密文, 共享密钥)；私钥解封装。
 /// 公钥、私钥、密文与共享密钥均为十六进制。
 pub trait KeyEncapsulation: Identified + Send + Sync {
