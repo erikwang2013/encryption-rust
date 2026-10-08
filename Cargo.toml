@@ -128,6 +128,19 @@ getrandom = { version = "0.4", features = ["sys_rng"] }
 # feature 同款做法）。
 ml-kem = { version = "0.2.3", features = ["deterministic", "zeroize"] }
 
+# ── 非对称能力扩充：ECDSA（P-256 / P-384 / secp256k1）/ Ed25519 / X25519 ────
+# 统一钉在 RustCrypto「elliptic-curve 0.13 / signature 2 / sha2 0.10 / rand_core 0.6」
+# 代际（与 cipher 0.4 代际同样的钉版理由：跨代际 trait 不匹配）。
+p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }   # ECDSA P-256（SHA-256）+ ECDH
+p384 = { version = "0.13.1", features = ["ecdsa", "ecdh"] }   # ECDSA P-384（SHA-384）+ ECDH
+k256 = { version = "0.13.4", features = ["ecdsa", "ecdh"] }   # ECDSA secp256k1（SHA-256）+ ECDH
+ed25519-dalek = { version = "2.2", features = ["rand_core"] } # Ed25519 签名（RFC 8032）
+x25519-dalek = { version = "2.0.1", features = [
+    "static_secrets",   # 以持久私钥参与协商（本库 API 每次调用传入私钥）
+    "zeroize",          # 临时私钥 / 共享秘密用完清零
+    "getrandom",        # 系统 CSPRNG 生成私钥
+] }                  # X25519 密钥协商（RFC 7748）
+
 # ── 框架集成（全部 opt-in）────────────────────────────────────────────────
 # 一律保留各框架的默认 feature：适配层要用的是它们的提取器 / 守卫 / 路由核心，
 # 而那几块常常挂在默认 feature 上。反正这些依赖只在用户主动开启对应 feature

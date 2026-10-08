@@ -63,8 +63,14 @@ pub trait Signer: Identified + Send + Sync {
     /// 对消息签名，返回十六进制签名（失败不为原因分类）。
     fn sign(&self, message: &[u8], private_key_hex: &str) -> Result<String>;
 
-    /// 验签；失败与格式错误一律 [`Error::VerificationFailed`]（不区分原因）。
+    /// 验签；失败与格式错误一律 [`crate::error::Error::VerificationFailed`]（不区分原因）。
     fn verify(&self, message: &[u8], signature_hex: &str, public_key_hex: &str) -> Result<()>;
+}
+
+/// 密钥协商：以己方私钥与对方公钥导出共享秘密（ECDH / X25519）。
+pub trait KeyAgreement: Identified + Send + Sync {
+    /// 返回定长共享秘密的十六进制（长度由实现决定，如 X25519 为 64 位十六进制）。
+    fn agree(&self, private_key_hex: &str, peer_public_key_hex: &str) -> Result<String>;
 }
 
 /// 密钥封装（KEM，FIPS 203 ML-KEM）：公钥封装 → (密文, 共享密钥)；私钥解封装。

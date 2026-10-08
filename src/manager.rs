@@ -12,6 +12,9 @@ use crate::contract::{
 use crate::error::{Error, Result};
 use crate::registry::Registry;
 
+mod asymmetric;
+pub use asymmetric::{KeyAgreementManager, SignatureManager};
+
 /// 校验并设置默认标识。
 fn check_default(registry_has: bool, kind: &'static str, identifier: &str) -> Result<()> {
     if registry_has {

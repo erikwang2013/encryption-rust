@@ -27,6 +27,8 @@ use crate::contract::{AsymmetricCipher, Identified};
 use crate::error::{Error, Result};
 use crate::internal::{hex_decode, hex_encode};
 
+use super::KeyPairHex;
+
 const LABEL: &str = "RSA-OAEP-SHA256";
 
 /// RSA 密钥生成的安全下限：2048 位。
@@ -34,13 +36,6 @@ const MIN_KEY_BITS: usize = 2048;
 
 /// SHA-256 摘要长度（字节）：OAEP 的填充开销为 2×32 + 2。
 const SHA256_OUTPUT_LEN: usize = 32;
-
-/// RSA-OAEP 密钥对（十六进制）：私钥 PKCS#8 DER，公钥 SPKI DER。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeyPairHex {
-    pub private_key_hex: String,
-    pub public_key_hex: String,
-}
 
 /// RSA-OAEP-SHA256 静态门面（密钥材料每次调用显式传入）。
 #[derive(Debug, Default, Clone, Copy)]
