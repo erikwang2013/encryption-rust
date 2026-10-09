@@ -21,6 +21,8 @@ exclude = [
     "ruvector.db",
     ".swarm",
     ".claude-flow",
+    ".claude",     # agent 工具链配置与 harness worktrees（1.2.0 起排除；此前误随包发布）
+    ".agents",
 ]
 
 [lib]
