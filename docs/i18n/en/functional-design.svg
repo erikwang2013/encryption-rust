@@ -1,11 +1,11 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 856" width="1000" height="856" role="img"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 936" width="1000" height="936" role="img"
      aria-labelledby="fdTitle fdDesc"
      font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
   <title id="fdTitle">Functional design — encryption-rust</title>
-  <desc id="fdDesc">Capability map: symmetric encryption, asymmetric encryption (SM2), hashing (SHA-256 / SM3), key derivation (HKDF), password-based derivation (PBKDF2), and Chinese national standards (SM4 / ZUC), plus design principles, secure defaults, and the extension path.</desc>
+  <desc id="fdDesc">Capability map: eight capability families — symmetric encryption (AES / ChaCha20 / Camellia / ARIA / Threefish / Kuznyechik / Salsa20), asymmetric encryption (SM2 / RSA-OAEP), hashing (SHA-2 / SHA-3 / BLAKE2 / BLAKE3 / SM3 / Streebog / Belt-Hash), key derivation (HKDF), password-based derivation (PBKDF2 / Argon2 / scrypt), signatures (SM2 / ECDSA / Ed25519), key agreement (ECDH / X25519), key encapsulation (post-quantum ML-KEM) and Chinese national standards (SM4 / SM4-GCM / ZUC / ZUC-256), plus design principles, secure defaults, and the extension path.</desc>
 
-  <rect x="0" y="0" width="1000" height="856" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <rect x="0" y="0" width="1000" height="936" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
 
   <!-- Project pet "Locky" mini icon (top-right, fully inline so it renders on GitHub) -->
   <g transform="translate(932, 16)">
@@ -37,7 +37,7 @@
   </g>
 
   <text x="40" y="46" font-size="26" font-weight="700" fill="#0F172A">Functional design</text>
-  <text x="40" y="72" font-size="14" fill="#64748B">Six families, one shape — contract (trait) · registry · facade · built-in identifiers · design principles · secure defaults · extension path</text>
+  <text x="40" y="72" font-size="14" fill="#64748B">Eight families, one shape — contract (trait) · registry · facade · built-in identifiers · design principles · secure defaults · extension path</text>
 
   <!-- ═══ Row 1 ═══ -->
   <!-- Symmetric encryption -->
@@ -121,34 +121,39 @@
   <text x="680" y="426" font-size="10" fill="#94A3B8">Pure Rust — no system extensions required.</text>
 
   <!-- ═══ Bottom three blocks ═══ -->
-  <rect x="40" y="452" width="298" height="188" rx="14" fill="#F5F3FF" stroke="#C4B5FD"/>
-  <text x="58" y="480" font-size="13.5" font-weight="700" fill="#5B21B6">Design principles</text>
-  <text x="58" y="506" font-size="11" fill="#4C1D95">· One contract (trait) per capability</text>
-  <text x="58" y="528" font-size="11" fill="#4C1D95">· Registry resolves by identifier</text>
-  <text x="58" y="550" font-size="11" fill="#4C1D95">· Payloads carry a format version (v1)</text>
-  <text x="58" y="572" font-size="11" fill="#4C1D95">· Zero framework coupling: opt-in features only</text>
-  <text x="58" y="594" font-size="11" fill="#4C1D95">· Same identifiers as the original, no switch cost</text>
-  <text x="58" y="622" font-size="10" fill="#7C3AED">Rust's own format: same shape, no byte interop.</text>
+  <!-- ═══ Three families added in 1.2.0 (same shape, injected separately) ═══ -->
+  <rect x="40" y="452" width="920" height="64" rx="14" fill="#EEF2FF" stroke="#C7D2FE"/>
+  <text x="58" y="478" font-size="12" font-weight="700" fill="#4338CA">Three families added in 1.2.0 — same shape, injected separately</text>
+  <text x="58" y="498" font-size="10" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Signer · SignatureManager │ KeyAgreement · KeyAgreementManager │ KeyEncapsulation · KeyEncapsulationManager (post-quantum ML-KEM)</text>
 
-  <rect x="351" y="452" width="298" height="188" rx="14" fill="#F0FDF4" stroke="#86EFAC"/>
-  <text x="369" y="480" font-size="13.5" font-weight="700" fill="#166534">Secure defaults</text>
-  <text x="369" y="506" font-size="11" fill="#14532D">· Random IV / nonce on every call</text>
-  <text x="369" y="528" font-size="11" fill="#14532D">· AEAD or encrypt-then-MAC</text>
-  <text x="369" y="550" font-size="11" fill="#14532D">· Constant-time comparison (verify_slice / ct_eq)</text>
-  <text x="369" y="572" font-size="11" fill="#14532D">· Strict 32-byte master key check at construction</text>
-  <text x="369" y="594" font-size="11" fill="#14532D">· Key material zeroized on Drop, Debug redacted</text>
-  <text x="369" y="622" font-size="10" fill="#15803D">No cause disclosed on failure — no attacker oracle.</text>
+  <rect x="40" y="532" width="298" height="188" rx="14" fill="#F5F3FF" stroke="#C4B5FD"/>
+  <text x="58" y="560" font-size="13.5" font-weight="700" fill="#5B21B6">Design principles</text>
+  <text x="58" y="586" font-size="11" fill="#4C1D95">· One contract (trait) per capability</text>
+  <text x="58" y="608" font-size="11" fill="#4C1D95">· Registry resolves by identifier</text>
+  <text x="58" y="630" font-size="11" fill="#4C1D95">· Payloads carry a format version (v1)</text>
+  <text x="58" y="652" font-size="11" fill="#4C1D95">· Zero framework coupling: opt-in features only</text>
+  <text x="58" y="674" font-size="11" fill="#4C1D95">· Same identifiers as the original, no switch cost</text>
+  <text x="58" y="702" font-size="10" fill="#7C3AED">Rust's own format: same shape, no byte interop.</text>
 
-  <rect x="662" y="452" width="298" height="188" rx="14" fill="#FFF7ED" stroke="#FDBA74"/>
-  <text x="680" y="480" font-size="13.5" font-weight="700" fill="#9A3412">Extension path — adding an algorithm</text>
-  <text x="680" y="506" font-size="11" fill="#7C2D12">1. Implement the family's contract trait</text>
-  <text x="680" y="528" font-size="11" fill="#7C2D12">2. Return a unique identifier()</text>
-  <text x="680" y="550" font-size="11" fill="#7C2D12">3. Register it in the matching Registry</text>
-  <text x="680" y="572" font-size="11" fill="#7C2D12">4. Call it through any facade</text>
-  <text x="680" y="600" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.registry_mut()</text>
-  <text x="680" y="616" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">    .register(Box::new(MyCipher::new()));</text>
-  <text x="680" y="632" font-size="10" fill="#C2410C">New algorithm = a new type + one register() call.</text>
+  <rect x="351" y="532" width="298" height="188" rx="14" fill="#F0FDF4" stroke="#86EFAC"/>
+  <text x="369" y="560" font-size="13.5" font-weight="700" fill="#166534">Secure defaults</text>
+  <text x="369" y="586" font-size="11" fill="#14532D">· Random IV / nonce on every call</text>
+  <text x="369" y="608" font-size="11" fill="#14532D">· AEAD or encrypt-then-MAC</text>
+  <text x="369" y="630" font-size="11" fill="#14532D">· Constant-time comparison (verify_slice / ct_eq)</text>
+  <text x="369" y="652" font-size="11" fill="#14532D">· Strict 32-byte master key check at construction</text>
+  <text x="369" y="674" font-size="11" fill="#14532D">· Key material zeroized on Drop, Debug redacted</text>
+  <text x="369" y="702" font-size="10" fill="#15803D">No cause disclosed on failure — no attacker oracle.</text>
 
-  <text x="40" y="836" font-size="10" fill="#94A3B8">Every facade offers two method sets — default algorithm and explicit *_with(identifier, …); identifiers match the PHP version.</text>
-  <text x="960" y="836" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
+  <rect x="662" y="532" width="298" height="188" rx="14" fill="#FFF7ED" stroke="#FDBA74"/>
+  <text x="680" y="560" font-size="13.5" font-weight="700" fill="#9A3412">Extension path — adding an algorithm</text>
+  <text x="680" y="586" font-size="11" fill="#7C2D12">1. Implement the family's contract trait</text>
+  <text x="680" y="608" font-size="11" fill="#7C2D12">2. Return a unique identifier()</text>
+  <text x="680" y="630" font-size="11" fill="#7C2D12">3. Register it in the matching Registry</text>
+  <text x="680" y="652" font-size="11" fill="#7C2D12">4. Call it through any facade</text>
+  <text x="680" y="680" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.registry_mut()</text>
+  <text x="680" y="696" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">    .register(Box::new(MyCipher::new()));</text>
+  <text x="680" y="712" font-size="10" fill="#C2410C">New algorithm = a new type + one register() call.</text>
+
+  <text x="40" y="916" font-size="10" fill="#94A3B8">Every facade offers two method sets — default algorithm and explicit *_with(identifier, …); identifiers match the PHP version.</text>
+  <text x="960" y="916" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
 </svg>

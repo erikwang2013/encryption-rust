@@ -21,7 +21,9 @@
 ### Changed
 - `sm2` 启用 `dsa` feature（SM2 签名）；`KeyPairHex` 统一为 `encryption::asymmetric::KeyPairHex`（RSA 与签名 / 协商共用）
 - 新增钉版依赖：`ghash` / `ctr`（SM4-GCM 组装）、`p256` / `p384` / `k256` / `ed25519-dalek` / `x25519-dalek`、`ml-kem` 0.2.3（features `deterministic` + `zeroize`）、`rsa` 0.9、`sha3` / `blake2` / `blake3` / `streebog` / `belt-hash`、`argon2` / `scrypt`、`camellia` / `aria` / `threefish` / `kuznyechik` / `salsa20` / `aes-gcm-siv` —— 全部落在既有 cipher 0.4 / digest 0.10 / aead 0.5 / elliptic-curve 0.13 / signature 2 代际
-- README（中英）与项目目录说明同步扩展面
+- README（中英）与项目目录说明同步扩展面；两张功能/架构设计图（中英）同步到八族
+- `RUSTSEC-2023-0071`（rsa 0.9.10「Marvin」时序侧信道，上游无补丁）加入 audit 白名单，附理由与退出条件；SECURITY.md / README / 模块文档同步披露缓解（`decrypt_blinded`）与替代建议（网络暴露场景优先 ECDH / X25519 / Ed25519 / ML-KEM）
+- 发布包排除 `.claude` / `.agents`（此前 agent 配置随包发布；1.2.0 起包内文件从 335 个缩减为 87 个）
 
 ## [1.1.1] - 2026-10-07
 

@@ -179,7 +179,7 @@ let phone = manager.decrypt(&stored)?;
 
 ## 功能设计
 
-![功能设计：六族能力 + 设计原则 + 安全默认值 + 扩展路径](./docs/functional-design.svg)
+![功能设计：八族能力 + 设计原则 + 安全默认值 + 扩展路径](./docs/functional-design.svg)
 
 图源文件：[`docs/functional-design.svg`](./docs/functional-design.svg)
 

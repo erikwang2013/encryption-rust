@@ -1,11 +1,11 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 856" width="1000" height="856" role="img"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 936" width="1000" height="936" role="img"
      aria-labelledby="fdTitle fdDesc"
      font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
   <title id="fdTitle">功能设计 — encryption-rust</title>
-  <desc id="fdDesc">能力地图：对称加密、非对称加密（SM2）、哈希（SHA-256 / SM3）、密钥派生（HKDF）、口令派生（PBKDF2）与国密（SM4 / ZUC），外加设计原则、安全默认值与扩展路径。</desc>
+  <desc id="fdDesc">能力地图：八族能力——对称加密（AES / ChaCha20 / Camellia / ARIA / Threefish / Kuznyechik / Salsa20）、非对称加密（SM2 / RSA-OAEP）、哈希（SHA-2 / SHA-3 / BLAKE2 / BLAKE3 / SM3 / Streebog / Belt-Hash）、密钥派生（HKDF）、口令派生（PBKDF2 / Argon2 / scrypt）、签名（SM2 / ECDSA / Ed25519）、密钥协商（ECDH / X25519）、密钥封装（后量子 ML-KEM）与国密（SM4 / SM4-GCM / ZUC / ZUC-256），外加设计原则、安全默认值与扩展路径。</desc>
 
-  <rect x="0" y="0" width="1000" height="856" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
+  <rect x="0" y="0" width="1000" height="936" rx="20" fill="#F8FAFC" stroke="#E2E8F0"/>
 
   <!-- 项目宠物「Locky」小图标（右上角，纯内联，GitHub 上可直接渲染） -->
   <g transform="translate(932, 16)">
@@ -37,7 +37,7 @@
   </g>
 
   <text x="40" y="46" font-size="26" font-weight="700" fill="#0F172A">功能设计</text>
-  <text x="40" y="72" font-size="14" fill="#64748B">六族能力共享同一结构 —— 契约（trait）· 注册表 · 门面 · 随 crate 交付的标识；外加设计原则、安全默认值与扩展路径</text>
+  <text x="40" y="72" font-size="14" fill="#64748B">八族能力共享同一结构 —— 契约（trait）· 注册表 · 门面 · 随 crate 交付的标识；外加设计原则、安全默认值与扩展路径</text>
 
   <!-- ═══ 第一行 ═══ -->
   <!-- 对称加密 -->
@@ -121,34 +121,39 @@
   <text x="680" y="426" font-size="10" fill="#94A3B8">纯 Rust 实现，无需任何系统扩展。</text>
 
   <!-- ═══ 底部三块 ═══ -->
-  <rect x="40" y="452" width="298" height="188" rx="14" fill="#F5F3FF" stroke="#C4B5FD"/>
-  <text x="58" y="480" font-size="13.5" font-weight="700" fill="#5B21B6">设计原则</text>
-  <text x="58" y="506" font-size="11" fill="#4C1D95">· 一个能力一份契约（trait）</text>
-  <text x="58" y="528" font-size="11" fill="#4C1D95">· 注册表按标识（identifier）解析</text>
-  <text x="58" y="550" font-size="11" fill="#4C1D95">· 载荷前缀带格式版本（v1）</text>
-  <text x="58" y="572" font-size="11" fill="#4C1D95">· 零框架耦合：集成全部是 opt-in feature</text>
-  <text x="58" y="594" font-size="11" fill="#4C1D95">· 与原版同标识：切换成本为零</text>
-  <text x="58" y="622" font-size="10" fill="#7C3AED">Rust 独立格式：结构与原版同形，但不承诺字节互通。</text>
+  <!-- ═══ 1.2.0 扩展三族（同一结构，另行注入）═══ -->
+  <rect x="40" y="452" width="920" height="64" rx="14" fill="#EEF2FF" stroke="#C7D2FE"/>
+  <text x="58" y="478" font-size="12" font-weight="700" fill="#4338CA">1.2.0 扩展三族 · 同一结构，另行注入</text>
+  <text x="58" y="498" font-size="10" fill="#475569" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">Signer · SignatureManager │ KeyAgreement · KeyAgreementManager │ KeyEncapsulation · KeyEncapsulationManager（后量子 ML-KEM）</text>
 
-  <rect x="351" y="452" width="298" height="188" rx="14" fill="#F0FDF4" stroke="#86EFAC"/>
-  <text x="369" y="480" font-size="13.5" font-weight="700" fill="#166534">安全默认值</text>
-  <text x="369" y="506" font-size="11" fill="#14532D">· 每次调用随机 IV / nonce</text>
-  <text x="369" y="528" font-size="11" fill="#14532D">· AEAD 或 encrypt-then-MAC</text>
-  <text x="369" y="550" font-size="11" fill="#14532D">· 常量时间比对（verify_slice / ct_eq）</text>
-  <text x="369" y="572" font-size="11" fill="#14532D">· 32 字节主密钥强校验，构造期即报错</text>
-  <text x="369" y="594" font-size="11" fill="#14532D">· 密钥材质 Drop 清零、Debug 遮蔽</text>
-  <text x="369" y="622" font-size="10" fill="#15803D">解密失败不区分原因，不给攻击者 oracle。</text>
+  <rect x="40" y="532" width="298" height="188" rx="14" fill="#F5F3FF" stroke="#C4B5FD"/>
+  <text x="58" y="560" font-size="13.5" font-weight="700" fill="#5B21B6">设计原则</text>
+  <text x="58" y="586" font-size="11" fill="#4C1D95">· 一个能力一份契约（trait）</text>
+  <text x="58" y="608" font-size="11" fill="#4C1D95">· 注册表按标识（identifier）解析</text>
+  <text x="58" y="630" font-size="11" fill="#4C1D95">· 载荷前缀带格式版本（v1）</text>
+  <text x="58" y="652" font-size="11" fill="#4C1D95">· 零框架耦合：集成全部是 opt-in feature</text>
+  <text x="58" y="674" font-size="11" fill="#4C1D95">· 与原版同标识：切换成本为零</text>
+  <text x="58" y="702" font-size="10" fill="#7C3AED">Rust 独立格式：结构与原版同形，但不承诺字节互通。</text>
 
-  <rect x="662" y="452" width="298" height="188" rx="14" fill="#FFF7ED" stroke="#FDBA74"/>
-  <text x="680" y="480" font-size="13.5" font-weight="700" fill="#9A3412">扩展路径 —— 新增一个算法</text>
-  <text x="680" y="506" font-size="11" fill="#7C2D12">1. 实现该族的契约 trait</text>
-  <text x="680" y="528" font-size="11" fill="#7C2D12">2. identifier() 返回唯一标识</text>
-  <text x="680" y="550" font-size="11" fill="#7C2D12">3. 注册进对应的 Registry</text>
-  <text x="680" y="572" font-size="11" fill="#7C2D12">4. 通过任意门面调用</text>
-  <text x="680" y="600" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.registry_mut()</text>
-  <text x="680" y="616" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">    .register(Box::new(MyCipher::new()));</text>
-  <text x="680" y="632" font-size="10" fill="#C2410C">新算法 = 一个新类型 + 一次 register()，业务代码只依赖契约。</text>
+  <rect x="351" y="532" width="298" height="188" rx="14" fill="#F0FDF4" stroke="#86EFAC"/>
+  <text x="369" y="560" font-size="13.5" font-weight="700" fill="#166534">安全默认值</text>
+  <text x="369" y="586" font-size="11" fill="#14532D">· 每次调用随机 IV / nonce</text>
+  <text x="369" y="608" font-size="11" fill="#14532D">· AEAD 或 encrypt-then-MAC</text>
+  <text x="369" y="630" font-size="11" fill="#14532D">· 常量时间比对（verify_slice / ct_eq）</text>
+  <text x="369" y="652" font-size="11" fill="#14532D">· 32 字节主密钥强校验，构造期即报错</text>
+  <text x="369" y="674" font-size="11" fill="#14532D">· 密钥材质 Drop 清零、Debug 遮蔽</text>
+  <text x="369" y="702" font-size="10" fill="#15803D">解密失败不区分原因，不给攻击者 oracle。</text>
 
-  <text x="40" y="836" font-size="10" fill="#94A3B8">每族门面都提供「用默认算法」与「显式 *_with(identifier, …)」两组方法；标识与 PHP 版一致。</text>
-  <text x="960" y="836" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
+  <rect x="662" y="532" width="298" height="188" rx="14" fill="#FFF7ED" stroke="#FDBA74"/>
+  <text x="680" y="560" font-size="13.5" font-weight="700" fill="#9A3412">扩展路径 —— 新增一个算法</text>
+  <text x="680" y="586" font-size="11" fill="#7C2D12">1. 实现该族的契约 trait</text>
+  <text x="680" y="608" font-size="11" fill="#7C2D12">2. identifier() 返回唯一标识</text>
+  <text x="680" y="630" font-size="11" fill="#7C2D12">3. 注册进对应的 Registry</text>
+  <text x="680" y="652" font-size="11" fill="#7C2D12">4. 通过任意门面调用</text>
+  <text x="680" y="680" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.registry_mut()</text>
+  <text x="680" y="696" font-size="10" fill="#9A3412" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">    .register(Box::new(MyCipher::new()));</text>
+  <text x="680" y="712" font-size="10" fill="#C2410C">新算法 = 一个新类型 + 一次 register()，业务代码只依赖契约。</text>
+
+  <text x="40" y="916" font-size="10" fill="#94A3B8">每族门面都提供「用默认算法」与「显式 *_with(identifier, …)」两组方法；标识与 PHP 版一致。</text>
+  <text x="960" y="916" font-size="10" fill="#94A3B8" text-anchor="end">© 2026 erik · https://erik.xyz</text>
 </svg>

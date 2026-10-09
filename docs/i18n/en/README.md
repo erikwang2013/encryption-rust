@@ -179,7 +179,7 @@ Capabilities are split into eight groups of contracts, each with the same contra
 
 ## Functional design
 
-![Functional design: six capability families + design principles + secure defaults + extension path](./functional-design.svg)
+![Functional design: eight capability families + design principles + secure defaults + extension path](./functional-design.svg)
 
 Source file: [`functional-design.svg`](./functional-design.svg)
 
