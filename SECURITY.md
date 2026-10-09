@@ -35,6 +35,10 @@ Out of scope:
 - Defects in the underlying RustCrypto crates (`aes-gcm`, `chacha20poly1305`, `sm2`, `sm3`, `sm4`, `hmac`, `sha2`, `hkdf`, `pbkdf2`, `zuc`) — report those upstream; if it affects this library, tell us too and we will track it here
 - Missing features (e.g. no sign/verify API) — that is a feature request, use the issue tracker
 
+## Known advisories in dependencies
+
+- **RUSTSEC-2023-0071 — "Marvin" timing side channel in the `rsa` crate.** No upstream patch exists (`patched = []`; both `rsa` 0.9.x and 0.10.0-rc are affected; tracked in RustCrypto/RSA#626, #680, #702), so it is whitelisted in CI with an explicit exit condition. This library's `rsa-oaep-sha256` decrypts through `decrypt_blinded` (the mitigation direction acknowledged by the advisory), but **prefer ECDH / X25519 / Ed25519 / ML-KEM for network-exposed settings** — treat RSA-OAEP as an interop / local-use tool. This whitelist entry will be removed when the upstream fix lands or when this library drops the algorithm.
+
 ## What this library does not protect against
 
 Transport security (use TLS), application-level authorisation, and key storage are outside its remit. Losing the master key means losing the data — there is no recovery path, by design.

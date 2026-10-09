@@ -52,4 +52,11 @@ jobs:
           # 与 rocket_http 0.5 传递引入（均为可选框架依赖）；h2 0.3 线已停止维护、
           # 该公告只修 >=0.4.16，锁内另一份 h2 0.4.19 已是修补版。
           # 待 actix-web / rocket 迁到 hyper 1.x 后删除本条。
-          ignore: RUSTSEC-2026-0258
+          #
+          # RUSTSEC-2023-0071（rsa 0.9.10「Marvin」时序侧信道，CVSS AV:N/AC:H）：
+          # 上游至今无补丁（patched = []，0.9.10 与 0.10.0-rc 均受影响；RSA#626/#680/#702
+          # 跟踪中）。本库的 rsa-oaep-sha256 解密固定走 decrypt_blinded（公告承认的缓解
+          # 方向），且已在模块文档、SECURITY.md 与 README 标注「网络暴露场景优先
+          # ECDH / X25519 / Ed25519 / ML-KEM」。待 rsa crate 落地常量时间填充、
+          # 或本库移除该算法后删除本条。
+          ignore: RUSTSEC-2026-0258,RUSTSEC-2023-0071
