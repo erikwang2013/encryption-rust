@@ -4,6 +4,14 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.2.1] - 2026-10-10
+
+### Changed
+- 文档与披露同步（**无代码变更**，API 与行为与 1.2.0 完全一致）：
+- `SECURITY.md` 新增「Known advisories in dependencies」小节：披露 `RUSTSEC-2023-0071`（rsa「Marvin」时序侧信道，上游无补丁）的缓解（`decrypt_blinded`）与替代建议（网络暴露场景优先 ECDH / X25519 / Ed25519 / ML-KEM）
+- README（中英）安全建议补 RSA-OAEP 边界条目；架构 / 功能设计图（中英）同步八族（功能图新增「1.2.0 扩展三族」横幅带）；`rsa` 模块文档标注同一公告
+- CI：audit 白名单加入 `RUSTSEC-2023-0071`（附理由与退出条件，与 h2 条目同格式）
+
 ## [1.2.0] - 2026-10-09
 
 ### Added
