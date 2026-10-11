@@ -4,9 +4,9 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
-## [Unreleased]
+## [1.3.0] - 2026-10-11
 
-> 建议版本号 **1.3.0**：新增公开 API（`from_master_key_all` / `register_extensions`）属向后兼容的功能新增；其余为内部重构与缺陷修复，公开类型名与方法签名均未变。
+> 新增公开 API（`from_master_key_all` / `register_extensions`）属向后兼容的功能新增；其余为内部重构与缺陷修复，公开类型名与方法签名均未变。按 semver 为 minor。
 
 ### Added
 - `EncryptionManagerFactory::from_master_key_all` 与 `register_extensions`：**九个扩展对称算法（`chacha20-poly1305-ietf`、`aes-256-gcm-siv`、`camellia-256-cbc-hmac`、`aria-256-cbc-hmac`、`threefish-512-cbc-hmac`、`kuznyechik-256-cbc-hmac`、`salsa20`、`sm4-gcm`、`zuc-256`）自此进工厂并各带独立派生子密钥**。此前它们不在工厂、也没有派生路径，按 README 手工装配的使用者只能自造密钥或复用别的算法的子密钥——后者直接违反本库「密钥永不跨算法复用」的不变量
