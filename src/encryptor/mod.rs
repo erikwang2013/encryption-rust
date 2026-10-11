@@ -1,12 +1,17 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 
 //! 对称加密实现（对应 PHP 版 `Encryptor/`）。
+//!
+//! CBC + HMAC（encrypt-then-MAC）一族共用一个泛型实现 [`cbc_hmac::CbcHmacEncryptor`]：
+//! AES / Camellia / ARIA / Kuznyechik / Threefish-512 / SM4 只是泛型参数不同，
+//! 各自的历史类型名由 `cbc_hmac` 里的别名保持。
 
 mod aes256cbc;
 mod aes256gcm;
 mod aes256gcm_siv;
 mod aria256cbc;
 mod camellia256cbc;
+pub mod cbc_hmac;
 mod chacha20poly1305_ietf;
 mod kuznyechikcbc;
 mod salsa20;

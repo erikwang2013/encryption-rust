@@ -2,38 +2,24 @@
 
 //! Belt-Hash（STB 34.101.31，白俄罗斯国家标准）；输出 32 字节。
 
-use belt_hash::{BeltHash, Digest};
+use belt_hash::BeltHash;
 
-use crate::contract::{Hasher, Identified};
-use crate::error::Result;
+use crate::hash::{NamedDigest, hasher};
 
-/// Belt-Hash 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct BeltHashHasher;
+hasher!(
+    BeltHashHasher,
+    "belt-hash",
+    "Belt-Hash 哈希器（无状态，可复用）。"
+);
 
-impl BeltHashHasher {
-    pub const IDENTIFIER: &'static str = "belt-hash";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for BeltHashHasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for BeltHashHasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(BeltHash::digest(data).to_vec())
-    }
+impl NamedDigest for BeltHashHasher {
+    type Core = BeltHash;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::Hasher;
 
     /// STB 34.101.31-2020 附录 A.11 表 A.23 测试 A.23-1：标准测试数据 H 的
     /// 前 13 字节（X = B194BAC80A08F53B366D008E58）。

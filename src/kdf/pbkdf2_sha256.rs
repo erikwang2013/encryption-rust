@@ -10,6 +10,11 @@ use sha2::Sha256;
 use crate::contract::{Identified, PasswordBasedKdf};
 use crate::error::{Error, Result};
 
+/// 输出长度上限：PBKDF2 的块序号是 32 位量（最多 (2^32−1) 块 × 32 字节），
+/// 取 `u32::MAX` 与 [`crate::kdf::Argon2Kdf`] 同一约定；上限把「先按请求分配、
+/// 再必然失败」的巨量请求拦在 `vec![0u8; length]` 之前。
+const MAX_OUTPUT_LEN: usize = u32::MAX as usize;
+
 /// PBKDF2-HMAC-SHA256 派生器。
 #[derive(Debug, Clone, Copy)]
 pub struct Pbkdf2Sha256 {
@@ -56,10 +61,10 @@ impl Identified for Pbkdf2Sha256 {
 
 impl PasswordBasedKdf for Pbkdf2Sha256 {
     fn derive_from_password(&self, password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
-        if length == 0 {
+        if length == 0 || length > MAX_OUTPUT_LEN {
             return Err(Error::InvalidOutputLength {
-                requested: 0,
-                max: usize::MAX,
+                requested: length,
+                max: MAX_OUTPUT_LEN,
             });
         }
 
@@ -95,7 +100,26 @@ mod tests {
             kdf.derive_from_password(b"pw", b"salt", 0).unwrap_err(),
             Error::InvalidOutputLength {
                 requested: 0,
-                max: usize::MAX
+                max: MAX_OUTPUT_LEN
+            }
+        );
+        // 上限之上：必须在 `vec![0u8; length]` 之前干净报错，而不是先申请
+        // 2^63 字节撞上 abort/OOM（修复前的行为）。
+        assert_eq!(
+            kdf.derive_from_password(b"pw", b"salt", usize::MAX / 2)
+                .unwrap_err(),
+            Error::InvalidOutputLength {
+                requested: usize::MAX / 2,
+                max: MAX_OUTPUT_LEN
+            }
+        );
+        // 边界：上限 + 1 即拒（上限本身会真分配 4 GiB，不在此断言）。
+        assert_eq!(
+            kdf.derive_from_password(b"pw", b"salt", MAX_OUTPUT_LEN + 1)
+                .unwrap_err(),
+            Error::InvalidOutputLength {
+                requested: MAX_OUTPUT_LEN + 1,
+                max: MAX_OUTPUT_LEN
             }
         );
     }

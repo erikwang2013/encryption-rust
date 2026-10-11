@@ -38,11 +38,10 @@ const LABEL: &str = "SM2";
 pub const DEFAULT_DIST_ID: &str = "1234567812345678";
 
 /// SM2 密钥对（十六进制）：私钥 64 位，公钥 130 位（非压缩 `04‖X‖Y`）。
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct KeyPairHex {
-    pub private_key_hex: String,
-    pub public_key_hex: String,
-}
+///
+/// 复用非对称族共用的 [`crate::asymmetric::KeyPairHex`]（`Debug` 遮蔽私钥），
+/// 不再本地重复定义——同一份类型两处定义会让遮蔽修复漏掉其中一处。
+pub use crate::asymmetric::KeyPairHex;
 
 /// SM2 静态门面（对应 PHP 版 `Sm2EncryptionService`）。
 #[derive(Debug, Default, Clone, Copy)]
@@ -416,5 +415,33 @@ mod tests {
             signer.verify(b"other", &signature, &pair.public_key_hex),
             Err(Error::VerificationFailed { label: LABEL })
         );
+    }
+
+    /// 外部互通验签：**GM/T 0003.5-2012 附录 A**（同 GB/T 32918.5-2016）签名示例，
+    /// 消息 `"message digest"`、私钥与密文示例相同（`3945208F…C5B8`），
+    /// 取自 OpenSSL 官方测试文件
+    /// [`test/sm2_internal_test.c`](https://github.com/openssl/openssl/blob/master/test/sm2_internal_test.c)
+    /// 的 `sm2_sig_test`，其注释标注 "From Annex A in both GM/T0003.5-2012 and
+    /// GB/T 32918.5-2016"。
+    ///
+    /// 该 `r‖s` 由 OpenSSL 以**默认用户标识**计算（测试中传 `NULL`）；OpenSSL 源码
+    /// `crypto/sm2/sm2_sign.c` 的 `default_sm2_id` 即 `"1234567812345678"`，
+    /// 与本库 [`DEFAULT_DIST_ID`] 逐字节一致，故可直接验签、无需改写标识。
+    /// 公钥 `P_A = d_A·G`（`04‖X‖Y`）由私钥经标准 SM2 曲线点乘派生——同一份
+    /// 独立 Python 点乘实现已先用附录 C 的 `C1 = k·G` 对上 OpenSSL 向量。
+    #[test]
+    fn verify_accepts_gmt0003_annex_a_openssl_signature() {
+        const PUBLIC_KEY: &str = concat!(
+            "04",                                                               // 非压缩点标记
+            "09F9DF311E5421A150DD7D161E4BC5C672179FAD1833FC076BB08FF356F35020", // X
+            "CCEA490CE26775A52DC6EA718CC1AA600AED05FBF35E084A6632F6072DA9AD13", // Y
+        );
+        const SIGNATURE: &str = concat!(
+            "F5A03B0648D2C4630EEAC513E1BB81A15944DA3827D5B74143AC7EACEEE720B3", // r
+            "B1B6AA29DF212FD8763182BC0D421CA1BB9038FD1F7F42D4840B69C485BBC1AA", // s
+        );
+
+        Sm2Service::verify(b"message digest", SIGNATURE, PUBLIC_KEY)
+            .expect("GM/T 0003.5 附录 A 的 r‖s 应通过验签");
     }
 }

@@ -20,21 +20,28 @@ const NONCE_LEN: usize = 12;
 const TAG_LEN: usize = 16;
 
 /// AES-256-GCM-SIV 加密器。
-#[derive(Debug)]
+///
+/// 块密码实例在构造时就建立（轮密钥只展开一次），加密与解密都复用它——
+/// 合成本 IV 本身每帧就多一次 AES 调用，省下每帧一次的密钥编排。
 pub struct Aes256GcmSivEncryptor {
-    key: Key<32>,
+    cipher: Aes256GcmSiv,
 }
 
 impl Aes256GcmSivEncryptor {
     pub const IDENTIFIER: &'static str = "aes-256-gcm-siv";
 
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            cipher: Aes256GcmSiv::new_from_slice(&key).expect("key length is fixed at 32"),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
+        // 借 Key<N> 做长度校验；临时副本随其 Drop 清零。
+        let key = Key::<32>::from_slice(key, LABEL)?;
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            cipher: Aes256GcmSiv::new_from_slice(key.as_bytes())
+                .expect("key length is fixed at 32"),
         })
     }
 
@@ -47,12 +54,9 @@ impl Aes256GcmSivEncryptor {
         nonce: &[u8; NONCE_LEN],
         plaintext: &[u8],
     ) -> Result<Vec<u8>> {
-        // Key<32> 保证长度，new_from_slice 不会失败。
-        let cipher =
-            Aes256GcmSiv::new_from_slice(self.key.as_bytes()).expect("key length is fixed at 32");
-
         let mut buffer = plaintext.to_vec();
-        let tag = cipher
+        let tag = self
+            .cipher
             .encrypt_in_place_detached(Nonce::from_slice(nonce), b"", &mut buffer)
             .map_err(|_| Error::EncryptionFailed { label: LABEL })?;
 
@@ -62,6 +66,16 @@ impl Aes256GcmSivEncryptor {
         blob.extend_from_slice(&tag);
         blob.extend_from_slice(&buffer);
         Ok(blob)
+    }
+}
+
+/// 只打印标识符——密钥材质不出现在 `Debug` 里
+/// （`Aes256GcmSiv` 未实现 `Debug`，此类型无法 derive）。
+impl std::fmt::Debug for Aes256GcmSivEncryptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Aes256GcmSivEncryptor")
+            .field("identifier", &Self::IDENTIFIER)
+            .finish_non_exhaustive()
     }
 }
 
@@ -89,10 +103,8 @@ impl SymmetricCipher for Aes256GcmSivEncryptor {
         let (nonce, rest) = body.split_at(NONCE_LEN);
         let (tag, ct) = rest.split_at(TAG_LEN);
 
-        let cipher =
-            Aes256GcmSiv::new_from_slice(self.key.as_bytes()).expect("key length is fixed at 32");
         let mut buffer = ct.to_vec();
-        cipher
+        self.cipher
             .decrypt_in_place_detached(
                 Nonce::from_slice(nonce),
                 b"",

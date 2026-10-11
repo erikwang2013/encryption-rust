@@ -16,22 +16,38 @@ const IV_LEN: usize = 12;
 const TAG_LEN: usize = 16;
 
 /// AES-256-GCM 加密器。
-#[derive(Debug)]
+///
+/// 块密码实例在构造时就建立（轮密钥只展开一次），加密与解密都复用它——
+/// 短载荷（本库的典型场景）下，避免每次调用重跑一遍 AES 密钥编排。
 pub struct Aes256GcmEncryptor {
-    key: Key<32>,
+    cipher: Aes256Gcm,
 }
 
 impl Aes256GcmEncryptor {
     pub const IDENTIFIER: &'static str = "aes-256-gcm";
 
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            cipher: Aes256Gcm::new_from_slice(&key).expect("key length is fixed at 32"),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
+        // 借 Key<N> 做长度校验；临时副本随其 Drop 清零。
+        let key = Key::<32>::from_slice(key, LABEL)?;
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            cipher: Aes256Gcm::new_from_slice(key.as_bytes()).expect("key length is fixed at 32"),
         })
+    }
+}
+
+/// 只打印标识符——密钥材质不出现在 `Debug` 里
+/// （`Aes256Gcm` 未实现 `Debug`，此类型无法 derive）。
+impl std::fmt::Debug for Aes256GcmEncryptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Aes256GcmEncryptor")
+            .field("identifier", &Self::IDENTIFIER)
+            .finish_non_exhaustive()
     }
 }
 
@@ -43,15 +59,12 @@ impl Identified for Aes256GcmEncryptor {
 
 impl SymmetricCipher for Aes256GcmEncryptor {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        // Key<32> 保证长度，new_from_slice 不会失败。
-        let cipher =
-            Aes256Gcm::new_from_slice(self.key.as_bytes()).expect("key length is fixed at 32");
-
         let mut iv = [0u8; IV_LEN];
         OsRng.fill_bytes(&mut iv);
 
         let mut buffer = plaintext.to_vec();
-        let tag = cipher
+        let tag = self
+            .cipher
             .encrypt_in_place_detached(Nonce::from_slice(&iv), b"", &mut buffer)
             .map_err(|_| Error::EncryptionFailed { label: LABEL })?;
 
@@ -74,10 +87,8 @@ impl SymmetricCipher for Aes256GcmEncryptor {
         let (iv, rest) = body.split_at(IV_LEN);
         let (tag, ct) = rest.split_at(TAG_LEN);
 
-        let cipher =
-            Aes256Gcm::new_from_slice(self.key.as_bytes()).expect("key length is fixed at 32");
         let mut buffer = ct.to_vec();
-        cipher
+        self.cipher
             .decrypt_in_place_detached(
                 Nonce::from_slice(iv),
                 b"",

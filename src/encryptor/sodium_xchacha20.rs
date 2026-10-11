@@ -19,22 +19,40 @@ const NONCE_LEN: usize = 24;
 const TAG_LEN: usize = 16;
 
 /// XChaCha20-Poly1305 加密器。
-#[derive(Debug)]
+///
+/// 密钥实例在构造时就建立，加密与解密都复用它；密钥字节随 `ChaChaPoly1305`
+/// 自身的 `Drop` 清零。192 位 nonce 随机生成，单密钥下可安全处理海量消息
+/// （`salsa20` 的 64 位 nonce 达不到这一点，见其模块文档）。
 pub struct SodiumXChaCha20Encryptor {
-    key: Key<32>,
+    cipher: XChaCha20Poly1305,
 }
 
 impl SodiumXChaCha20Encryptor {
     pub const IDENTIFIER: &'static str = "sodium-xchacha20";
 
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            cipher: XChaCha20Poly1305::new_from_slice(&key).expect("key length is fixed at 32"),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
+        // 借 Key<N> 做长度校验；临时副本随其 Drop 清零。
+        let key = Key::<32>::from_slice(key, LABEL)?;
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            cipher: XChaCha20Poly1305::new_from_slice(key.as_bytes())
+                .expect("key length is fixed at 32"),
         })
+    }
+}
+
+/// 只打印标识符——密钥材质不出现在 `Debug` 里
+/// （`XChaCha20Poly1305` 未实现 `Debug`，此类型无法 derive）。
+impl std::fmt::Debug for SodiumXChaCha20Encryptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SodiumXChaCha20Encryptor")
+            .field("identifier", &Self::IDENTIFIER)
+            .finish_non_exhaustive()
     }
 }
 
@@ -46,14 +64,12 @@ impl Identified for SodiumXChaCha20Encryptor {
 
 impl SymmetricCipher for SodiumXChaCha20Encryptor {
     fn encrypt(&self, plaintext: &[u8]) -> Result<Vec<u8>> {
-        let cipher = XChaCha20Poly1305::new_from_slice(self.key.as_bytes())
-            .expect("key length is fixed at 32");
-
         let mut nonce = [0u8; NONCE_LEN];
         OsRng.fill_bytes(&mut nonce);
 
         let mut buffer = plaintext.to_vec();
-        let tag = cipher
+        let tag = self
+            .cipher
             .encrypt_in_place_detached(XNonce::from_slice(&nonce), b"", &mut buffer)
             .map_err(|_| Error::EncryptionFailed { label: LABEL })?;
 
@@ -77,10 +93,8 @@ impl SymmetricCipher for SodiumXChaCha20Encryptor {
         let (nonce, rest) = body.split_at(NONCE_LEN);
         let (ct, tag) = rest.split_at(rest.len() - TAG_LEN);
 
-        let cipher = XChaCha20Poly1305::new_from_slice(self.key.as_bytes())
-            .expect("key length is fixed at 32");
         let mut buffer = ct.to_vec();
-        cipher
+        self.cipher
             .decrypt_in_place_detached(
                 XNonce::from_slice(nonce),
                 b"",

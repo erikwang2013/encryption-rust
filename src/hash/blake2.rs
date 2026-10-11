@@ -4,62 +4,33 @@
 //!
 //! 均为无密钥（unkeyed）模式；带密钥 / 加盐的 BLAKE2 不在本库范围。
 
-use blake2::{Blake2b512, Blake2s256, Digest};
+use blake2::{Blake2b512, Blake2s256};
 
-use crate::contract::{Hasher, Identified};
-use crate::error::Result;
+use crate::hash::{NamedDigest, hasher};
 
-/// BLAKE2b-512 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Blake2b512Hasher;
+hasher!(
+    Blake2b512Hasher,
+    "blake2b-512",
+    "BLAKE2b-512 哈希器（无状态，可复用）。"
+);
+hasher!(
+    Blake2s256Hasher,
+    "blake2s-256",
+    "BLAKE2s-256 哈希器（无状态，可复用）。"
+);
 
-impl Blake2b512Hasher {
-    pub const IDENTIFIER: &'static str = "blake2b-512";
-
-    pub fn new() -> Self {
-        Self
-    }
+impl NamedDigest for Blake2b512Hasher {
+    type Core = Blake2b512;
 }
 
-impl Identified for Blake2b512Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Blake2b512Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Blake2b512::digest(data).to_vec())
-    }
-}
-
-/// BLAKE2s-256 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Blake2s256Hasher;
-
-impl Blake2s256Hasher {
-    pub const IDENTIFIER: &'static str = "blake2s-256";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for Blake2s256Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Blake2s256Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Blake2s256::digest(data).to_vec())
-    }
+impl NamedDigest for Blake2s256Hasher {
+    type Core = Blake2s256;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::Hasher;
 
     /// RFC 7693 附录 A 的 "abc" 向量：A.1 BLAKE2b-512、A.2 BLAKE2s-256。
     #[test]

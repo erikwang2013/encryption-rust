@@ -20,21 +20,28 @@ const NONCE_LEN: usize = 12;
 const TAG_LEN: usize = 16;
 
 /// IETF ChaCha20-Poly1305 加密器。
-#[derive(Debug)]
+///
+/// 密钥实例在构造时就建立，加密与解密都复用它；密钥字节随 `ChaChaPoly1305`
+/// 自身的 `Drop` 清零。
 pub struct ChaCha20Poly1305IetfEncryptor {
-    key: Key<32>,
+    cipher: ChaCha20Poly1305,
 }
 
 impl ChaCha20Poly1305IetfEncryptor {
     pub const IDENTIFIER: &'static str = "chacha20-poly1305-ietf";
 
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            cipher: ChaCha20Poly1305::new_from_slice(&key).expect("key length is fixed at 32"),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
+        // 借 Key<N> 做长度校验；临时副本随其 Drop 清零。
+        let key = Key::<32>::from_slice(key, LABEL)?;
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            cipher: ChaCha20Poly1305::new_from_slice(key.as_bytes())
+                .expect("key length is fixed at 32"),
         })
     }
 
@@ -49,12 +56,9 @@ impl ChaCha20Poly1305IetfEncryptor {
         aad: &[u8],
         plaintext: &[u8],
     ) -> Result<Vec<u8>> {
-        // Key<32> 保证长度，new_from_slice 不会失败。
-        let cipher = ChaCha20Poly1305::new_from_slice(self.key.as_bytes())
-            .expect("key length is fixed at 32");
-
         let mut buffer = plaintext.to_vec();
-        let tag = cipher
+        let tag = self
+            .cipher
             .encrypt_in_place_detached(Nonce::from_slice(nonce), aad, &mut buffer)
             .map_err(|_| Error::EncryptionFailed { label: LABEL })?;
 
@@ -78,10 +82,8 @@ impl ChaCha20Poly1305IetfEncryptor {
         let (nonce, rest) = body.split_at(NONCE_LEN);
         let (tag, ct) = rest.split_at(TAG_LEN);
 
-        let cipher = ChaCha20Poly1305::new_from_slice(self.key.as_bytes())
-            .expect("key length is fixed at 32");
         let mut buffer = ct.to_vec();
-        cipher
+        self.cipher
             .decrypt_in_place_detached(
                 Nonce::from_slice(nonce),
                 aad,
@@ -90,6 +92,16 @@ impl ChaCha20Poly1305IetfEncryptor {
             )
             .map_err(|_| Error::DecryptionFailed { label: LABEL })?;
         Ok(buffer)
+    }
+}
+
+/// 只打印标识符——密钥材质不出现在 `Debug` 里
+/// （`ChaCha20Poly1305` 未实现 `Debug`，此类型无法 derive）。
+impl std::fmt::Debug for ChaCha20Poly1305IetfEncryptor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ChaCha20Poly1305IetfEncryptor")
+            .field("identifier", &Self::IDENTIFIER)
+            .finish_non_exhaustive()
     }
 }
 

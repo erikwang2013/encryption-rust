@@ -2,38 +2,20 @@
 
 //! SHA-256 哈希；输出 32 字节。
 
-use sha2::{Digest, Sha256};
+use sha2::Sha256;
 
-use crate::contract::{Hasher, Identified};
-use crate::error::Result;
+use crate::hash::{NamedDigest, hasher};
 
-/// SHA-256 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Sha256Hasher;
+hasher!(Sha256Hasher, "sha256", "SHA-256 哈希器（无状态，可复用）。");
 
-impl Sha256Hasher {
-    pub const IDENTIFIER: &'static str = "sha256";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for Sha256Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Sha256Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Sha256::digest(data).to_vec())
-    }
+impl NamedDigest for Sha256Hasher {
+    type Core = Sha256;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::Hasher;
 
     #[test]
     fn matches_known_vector() {

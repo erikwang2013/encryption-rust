@@ -6,26 +6,11 @@
 //! 本库统一走官方默认的 32 字节（即扩展输出流的前 32 字节），不提供可变长度
 //! 接口。blake3 crate 为独立实现，不依赖 RustCrypto digest trait 代际。
 
-use crate::contract::{Hasher, Identified};
+use crate::contract::Hasher;
 use crate::error::Result;
+use crate::hash::hasher;
 
-/// BLAKE3 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Blake3Hasher;
-
-impl Blake3Hasher {
-    pub const IDENTIFIER: &'static str = "blake3";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for Blake3Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
+hasher!(Blake3Hasher, "blake3", "BLAKE3 哈希器（无状态，可复用）。");
 
 impl Hasher for Blake3Hasher {
     fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {

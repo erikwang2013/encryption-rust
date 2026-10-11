@@ -4,27 +4,14 @@
 
 use sm3::{Digest, Sm3};
 
-use crate::contract::{Hasher, Identified};
+use crate::contract::Hasher;
 use crate::error::Result;
+use crate::hash::hasher;
 
-/// SM3 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Sm3Hasher;
+hasher!(Sm3Hasher, "sm3", "SM3 哈希器（无状态，可复用）。");
 
-impl Sm3Hasher {
-    pub const IDENTIFIER: &'static str = "sm3";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for Sm3Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
+// sm3 crate 走 digest 0.11 代际，与 hash/ 模块的 digest 0.10 不是同一个
+// `Digest` trait，故不能接 `NamedDigest`，此处自实现（`Identified` 由宏给出）。
 impl Hasher for Sm3Hasher {
     fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
         Ok(Sm3::digest(data).to_vec())

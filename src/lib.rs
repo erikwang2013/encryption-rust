@@ -1,5 +1,8 @@
 // Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz
 
+// 全库不含 unsafe：这条保证由编译器强制，而不是靠人读。新增 unsafe 会直接编译失败。
+#![forbid(unsafe_code)]
+
 //! 可插拔密码学组件库的 Rust 实现：在统一契约下提供对称加密、非对称加密、
 //! 哈希与密钥派生（HKDF / PBKDF2），包含 AES/Sodium 与国密 SM2/SM3/SM4/ZUC 等实现。
 //!

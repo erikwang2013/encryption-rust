@@ -27,6 +27,7 @@
 use std::sync::Arc;
 
 use base64::Engine as _;
+use zeroize::Zeroizing;
 
 use crate::error::{Error, Result};
 use crate::manager::EncryptionManager;
@@ -100,11 +101,14 @@ impl Guard {
     /// # Ok::<(), encryption::Error>(())
     /// ```
     pub fn from_env_with<F: Fn(&str) -> Option<String>>(lookup: F) -> Result<Self> {
-        let raw = lookup(MASTER_KEY_ENV).ok_or(Error::MissingConfig {
+        // 环境变量原文即主密钥的编码形态：包进 Zeroizing，用完（含提前返回）即清零。
+        let raw = Zeroizing::new(lookup(MASTER_KEY_ENV).ok_or(Error::MissingConfig {
             key: MASTER_KEY_ENV,
-        })?;
+        })?);
         let algorithm = lookup(ALGORITHM_ENV).unwrap_or_else(|| DEFAULT_ALGORITHM.to_owned());
-        Self::from_master_key(&decode_master_key(&raw)?, &algorithm)
+        // 解码结果（定长主密钥）同样在交给工厂后清零。
+        let master_key = Zeroizing::new(decode_master_key(raw.as_str())?);
+        Self::from_master_key(master_key.as_slice(), &algorithm)
     }
 
     /// 共享的 Manager。总是存在。
@@ -152,19 +156,24 @@ fn decode_master_key(raw: &str) -> Result<[u8; 32]> {
         (false, value)
     };
 
-    let decoded = if is_hex {
-        crate::internal::hex_decode(payload).ok()
-    } else {
-        base64::engine::general_purpose::STANDARD
-            .decode(payload)
-            .ok()
-    }
-    // 解码失败时字节长度未知，got 记 0。
-    .ok_or(Error::InvalidMasterKey { got: 0 })?;
+    // 解码结果即主密钥本体：包进 Zeroizing，成功与否都在离开作用域时清零
+    // （长度不符的早退路径同样清零，错误分支不做任何额外分配）。
+    let decoded = Zeroizing::new(
+        if is_hex {
+            crate::internal::hex_decode(payload).ok()
+        } else {
+            base64::engine::general_purpose::STANDARD
+                .decode(payload)
+                .ok()
+        }
+        // 解码失败时字节长度未知，got 记 0。
+        .ok_or(Error::InvalidMasterKey { got: 0 })?,
+    );
 
     decoded
+        .as_slice()
         .try_into()
-        .map_err(|v: Vec<u8>| Error::InvalidMasterKey { got: v.len() })
+        .map_err(|_| Error::InvalidMasterKey { got: decoded.len() })
 }
 
 #[cfg(test)]

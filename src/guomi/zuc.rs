@@ -7,9 +7,8 @@ use rand_core::{OsRng, RngCore};
 use zuc::zuc128::zuc128_xor_inplace;
 
 use crate::contract::{Identified, SymmetricCipher};
-use crate::error::Result;
-use crate::internal::etm;
-use crate::key::Key;
+use crate::error::{Error, Result};
+use crate::internal::etm::{self, EtmKeys};
 
 const LABEL: &str = "ZUC";
 const IV_LEN: usize = 16;
@@ -17,19 +16,21 @@ const IV_LEN: usize = 16;
 /// ZUC-128 加密器。
 #[derive(Debug)]
 pub struct Zuc128Encryptor {
-    key: Key<16>,
+    keys: EtmKeys<16>,
 }
 
 impl Zuc128Encryptor {
     pub const IDENTIFIER: &'static str = "zuc-128";
 
     pub fn new(key: [u8; 16]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            keys: EtmKeys::new(key),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            keys: EtmKeys::from_slice(key, LABEL)?,
         })
     }
 }
@@ -46,22 +47,31 @@ impl SymmetricCipher for Zuc128Encryptor {
         OsRng.fill_bytes(&mut iv);
 
         let mut buffer = plaintext.to_vec();
-        let bit_len = buffer.len() * 8;
-        zuc128_xor_inplace(self.key.as_bytes(), &iv, &mut buffer, bit_len);
+        let bit_len = bit_length(&buffer).ok_or(Error::EncryptionFailed { label: LABEL })?;
+        zuc128_xor_inplace(self.keys.cipher(), &iv, &mut buffer, bit_len);
 
-        Ok(etm::pack(&iv, &buffer, self.key.as_bytes()))
+        Ok(etm::pack(&iv, &buffer, self.keys.mac()))
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        let (iv, body) = etm::unpack_and_verify(ciphertext, IV_LEN, self.key.as_bytes(), LABEL)?;
+        let (iv, body) = etm::unpack_and_verify(ciphertext, IV_LEN, self.keys.mac(), LABEL)?;
         // unpack_and_verify 已保证 IV 长度恰为 16。
         let iv: &[u8; IV_LEN] = iv.try_into().expect("iv length was verified");
 
         let mut buffer = body.to_vec();
-        let bit_len = buffer.len() * 8;
-        zuc128_xor_inplace(self.key.as_bytes(), iv, &mut buffer, bit_len);
+        let bit_len = bit_length(&buffer).ok_or(Error::DecryptionFailed { label: LABEL })?;
+        zuc128_xor_inplace(self.keys.cipher(), iv, &mut buffer, bit_len);
         Ok(buffer)
     }
+}
+
+/// 载荷的比特长度；`usize` 装不下时返回 `None`。
+///
+/// 64 位目标上不可能触发（需要 2^61 字节的载荷）；32 位目标（wasm32 / i686 /
+/// armv7）上 512 MiB 即回绕，而底层 ZUC 实现拿到回绕后的 `bit_len` 会把超出
+/// 部分的密文静默清零——那是数据毁坏，必须在这里拦住而不是放过去。
+fn bit_length(data: &[u8]) -> Option<usize> {
+    data.len().checked_mul(8)
 }
 
 #[cfg(test)]

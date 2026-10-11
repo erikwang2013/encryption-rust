@@ -3,6 +3,25 @@
 //! Salsa20/20 流密码（D. J. Bernstein）+ HMAC-SHA256（encrypt-then-MAC）；
 //! 载荷：`v1 | nonce(8) | MAC(32) | 密文（与密钥流异或）`。密钥 32 字节。
 //! 与国密 ZUC（`src/guomi/zuc.rs`）同一套帧与 etm 约定。
+//!
+//! # 单密钥消息上限：64 位 nonce（使用前必读）
+//!
+//! Salsa20 的 nonce 按规范固定为 8 字节（64 位），本库每次加密随机生成一个。
+//! 同一把密钥下的 nonce 空间只有 2^64，随机取值在消息量达到 2^32（约 43 亿）条时，
+//! 按生日界已有约 **39%** 的概率至少重复一次。
+//!
+//! nonce 在 `v1` 帧头里**明文**传输：攻击者拿到一批密文，按 nonce 分组即可直接
+//! 看出重复——不需要任何解密预言机。而一旦两条消息 nonce 相同，它们的密钥流完全
+//! 一致，两条密文异或即得 `m1 XOR m2`，机密性当场失效（两条消息的明文统计信息
+//! 随之泄露，且可被利用做 crib-dragging）。
+//!
+//! 因此：单密钥下的消息量必须远低于 2^32（建议 ≤ 2^24 条，重复概率约 2^-17 量级），
+//! 密钥轮换应作为常规运维手段。需要单密钥处理海量消息时，改用
+//! [`SodiumXChaCha20Encryptor`](crate::encryptor::SodiumXChaCha20Encryptor)
+//! （同库同族原语，nonce 192 位，随机生成下 2^64 条消息仍无碰撞之忧）。
+//!
+//! 这是「64 位 nonce + 随机生成」的组合性质，本层无法修复；不要试图绕过它，
+//! 要么控制消息量，要么换 192 位 nonce 的算法。
 
 use cbc::cipher::{KeyIvInit, StreamCipher};
 use rand_core::{OsRng, RngCore};
@@ -10,29 +29,33 @@ use salsa20::Salsa20;
 
 use crate::contract::{Identified, SymmetricCipher};
 use crate::error::Result;
-use crate::internal::etm;
-use crate::key::Key;
+use crate::internal::etm::{self, EtmKeys};
 
 const LABEL: &str = "Salsa20";
 /// Salsa20 的 nonce 是 64 位（8 字节）；即名称里的 20 之外的变体参数都在密钥里。
 const NONCE_LEN: usize = 8;
 
 /// Salsa20/20 加密器。
+///
+/// 直接持有 `EtmKeys`（密文密钥 + 派生好的 MAC 密钥，均 Drop 清零），
+/// 加密与解密路径不再每次重跑一遍 MAC 密钥派生。
 #[derive(Debug)]
 pub struct Salsa20Encryptor {
-    key: Key<32>,
+    keys: EtmKeys<32>,
 }
 
 impl Salsa20Encryptor {
     pub const IDENTIFIER: &'static str = "salsa20";
 
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            keys: EtmKeys::new(key),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            keys: EtmKeys::from_slice(key, LABEL)?,
         })
     }
 }
@@ -49,19 +72,18 @@ impl SymmetricCipher for Salsa20Encryptor {
         OsRng.fill_bytes(&mut nonce);
 
         let mut buffer = plaintext.to_vec();
-        Salsa20::new_from_slices(self.key.as_bytes(), &nonce)
+        Salsa20::new_from_slices(self.keys.cipher(), &nonce)
             .expect("key and nonce lengths are fixed")
             .apply_keystream(&mut buffer);
 
-        Ok(etm::pack(&nonce, &buffer, self.key.as_bytes()))
+        Ok(etm::pack(&nonce, &buffer, self.keys.mac()))
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        let (nonce, body) =
-            etm::unpack_and_verify(ciphertext, NONCE_LEN, self.key.as_bytes(), LABEL)?;
+        let (nonce, body) = etm::unpack_and_verify(ciphertext, NONCE_LEN, self.keys.mac(), LABEL)?;
 
         let mut buffer = body.to_vec();
-        Salsa20::new_from_slices(self.key.as_bytes(), nonce)
+        Salsa20::new_from_slices(self.keys.cipher(), nonce)
             .expect("key and nonce lengths were verified")
             .apply_keystream(&mut buffer);
         Ok(buffer)

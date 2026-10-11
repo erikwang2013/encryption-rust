@@ -5,62 +5,33 @@
 //! 是 FIPS 202 标准化的 SHA-3（域分隔符 0x06），不是 Keccak 提交版
 //! （0x01 填充，SHAKE 的前身）——两者对同一输入给出不同摘要。
 
-use sha3::{Digest, Sha3_256, Sha3_512};
+use sha3::{Sha3_256, Sha3_512};
 
-use crate::contract::{Hasher, Identified};
-use crate::error::Result;
+use crate::hash::{NamedDigest, hasher};
 
-/// SHA3-256 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Sha3_256Hasher;
+hasher!(
+    Sha3_256Hasher,
+    "sha3-256",
+    "SHA3-256 哈希器（无状态，可复用）。"
+);
+hasher!(
+    Sha3_512Hasher,
+    "sha3-512",
+    "SHA3-512 哈希器（无状态，可复用）。"
+);
 
-impl Sha3_256Hasher {
-    pub const IDENTIFIER: &'static str = "sha3-256";
-
-    pub fn new() -> Self {
-        Self
-    }
+impl NamedDigest for Sha3_256Hasher {
+    type Core = Sha3_256;
 }
 
-impl Identified for Sha3_256Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Sha3_256Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Sha3_256::digest(data).to_vec())
-    }
-}
-
-/// SHA3-512 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Sha3_512Hasher;
-
-impl Sha3_512Hasher {
-    pub const IDENTIFIER: &'static str = "sha3-512";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for Sha3_512Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Sha3_512Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Sha3_512::digest(data).to_vec())
-    }
+impl NamedDigest for Sha3_512Hasher {
+    type Core = Sha3_512;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::Hasher;
 
     /// FIPS 202 发布时给出的 "abc" 示例摘要（NIST SHA-3 标准示例值）。
     #[test]

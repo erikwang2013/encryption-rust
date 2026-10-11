@@ -2,7 +2,8 @@
 
 //! 已知答案向量（KAT）：用**独立参考实现**生成的密文反证本库的解密路径。
 //!
-//! 向量的密文由 PHP 8.5.6（本机，openssl + sodium 扩展）生成后硬编码为十六进制；
+//! 对称族向量的密文由 PHP 8.5.6（本机，openssl + sodium 扩展）生成后硬编码为十六进制；
+//! SM2 向量取自 OpenSSL 官方测试文件中的 GM/T 0003.5-2012 附录 C 示例（见文末）；
 //! Rust 侧只做解密断言 —— 加密用随机 IV / Nonce，方向无法逐字节比对。
 //!
 //! 生成脚本（一次性执行，载荷 29 字节，密钥为可读序列 `00 01 … 1f` / `00 … 0f`）：
@@ -41,7 +42,7 @@
 
 use encryption::contract::SymmetricCipher;
 use encryption::encryptor::{Aes256CbcEncryptor, Aes256GcmEncryptor, SodiumXChaCha20Encryptor};
-use encryption::guomi::Sm4CbcEncryptor;
+use encryption::guomi::{Sm2Service, Sm4CbcEncryptor};
 
 /// 每条向量共用的明文（29 字节，含中英文字节）。
 const PLAINTEXT: &[u8] = "KAT vector 已知答案向量".as_bytes();
@@ -131,4 +132,43 @@ fn sm4cbc_decrypts_php_openssl_vector() {
         .decrypt(&hex(SM4_BLOB))
         .expect("参考实现密文应能解开");
     assert_eq!(plaintext, PLAINTEXT);
+}
+
+/// SM2 公钥加解密互通向量：**GM/T 0003.5-2012 附录 C**（同 GB/T 32918.5-2016）
+/// 公钥加密示例（明文 `"encryption standard"`），取自 OpenSSL 官方测试文件
+/// [`test/sm2_internal_test.c`](https://github.com/openssl/openssl/blob/master/test/sm2_internal_test.c)
+/// 的 `sm2_crypt_test`，其注释标注 "From Annex C in both GM/T0003.5-2012 and
+/// GB/T 32918.5-2016"。
+///
+/// **序列化转换**：OpenSSL 给出的密文是 GM/T 0009-2012 第 7.2 节的 ASN.1 形式
+/// （`SEQUENCE { INTEGER x, INTEGER y, OCTET STRING C3, OCTET STRING C2 }`），
+/// 与本库消费的原始布局 `C1‖C3‖C2` 不同，此处按下述方式转换后写入：
+///
+/// - 去掉 `SEQUENCE` / `INTEGER` / `OCTET STRING` 的 DER 头；
+/// - `y` 在原 DER 中带一个前导 `00`（正整数的 DER 填充位），转换时去掉；
+/// - `C1 = 04 ‖ x ‖ y`（非压缩点，65 字节），其后依次拼接 `C3`（32 字节）
+///   与 `C2`（19 字节）。
+///
+/// 私钥 `d`、明文与临时密钥 `k` 均取自同一出处（`d` 为
+/// `3945208F…C5B8`，`k` 为 `59276E27…BC21`）。转换结果已逐个复算比对后才写入：
+/// `C1 = k·G`，且 `C3 = SM3(x2‖M‖y2)`、`C2 = M ⊕ KDF(x2‖y2)`（`(x2,y2) = k·P_B`）
+/// 经独立 Python 实现复现，与 OpenSSL 字节一致。
+const SM2_ANNEX_C_CIPHERTEXT: &str = concat!(
+    "04",                                                               // C1：非压缩点标记
+    "04EBFC718E8D1798620432268E77FEB6415E2EDE0E073C0F4F640ECD2E149A73", // X
+    "E858F9D81E5430A57B36DAAB8F950A3C64E6EE6A63094D99283AFF767E124DF0", // Y
+    "59983C18F809E262923C53AEC295D30383B54E39D609D160AFCB1908D0BD8766", // C3 = SM3(x2‖M‖y2)
+    "21886CA989CA9C7D58087307CA93092D651EFA",                           // C2
+);
+
+#[test]
+fn sm2_decrypts_gmt0003_annex_c_openssl_vector() {
+    const PRIVATE_KEY: &str = "3945208F7B2144B13F36E38AC6D39F95889393692860B51A42FB81EF4DF7C5B8";
+
+    // 116 字节 = C1(65) + C3(32) + C2(19)，钉住字面量本身的布局。
+    assert_eq!(SM2_ANNEX_C_CIPHERTEXT.len(), 2 * 116);
+
+    let plaintext = Sm2Service::decrypt(SM2_ANNEX_C_CIPHERTEXT, PRIVATE_KEY)
+        .expect("GM/T 0003.5 附录 C 密文应能解开");
+    assert_eq!(plaintext, b"encryption standard");
 }

@@ -14,8 +14,7 @@ use zuc::zuc256::Zuc256Keystream;
 
 use crate::contract::{Identified, SymmetricCipher};
 use crate::error::Result;
-use crate::internal::etm;
-use crate::key::Key;
+use crate::internal::etm::{self, EtmKeys};
 
 const LABEL: &str = "ZUC-256";
 const IV_LEN: usize = 23;
@@ -23,19 +22,21 @@ const IV_LEN: usize = 23;
 /// ZUC-256 加密器。
 #[derive(Debug)]
 pub struct Zuc256Encryptor {
-    key: Key<32>,
+    keys: EtmKeys<32>,
 }
 
 impl Zuc256Encryptor {
     pub const IDENTIFIER: &'static str = "zuc-256";
 
     pub fn new(key: [u8; 32]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            keys: EtmKeys::new(key),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            keys: EtmKeys::from_slice(key, LABEL)?,
         })
     }
 }
@@ -53,18 +54,18 @@ impl SymmetricCipher for Zuc256Encryptor {
         // 注：底层按 ZUC-256 规范取 iv[22] 的低 6 bit，有效 IV 熵为 182 bit。
 
         let mut buffer = plaintext.to_vec();
-        xor_keystream(self.key.as_bytes(), &iv, &mut buffer);
+        xor_keystream(self.keys.cipher(), &iv, &mut buffer);
 
-        Ok(etm::pack(&iv, &buffer, self.key.as_bytes()))
+        Ok(etm::pack(&iv, &buffer, self.keys.mac()))
     }
 
     fn decrypt(&self, ciphertext: &[u8]) -> Result<Vec<u8>> {
-        let (iv, body) = etm::unpack_and_verify(ciphertext, IV_LEN, self.key.as_bytes(), LABEL)?;
+        let (iv, body) = etm::unpack_and_verify(ciphertext, IV_LEN, self.keys.mac(), LABEL)?;
         // unpack_and_verify 已保证 IV 长度恰为 23。
         let iv: &[u8; IV_LEN] = iv.try_into().expect("iv length was verified");
 
         let mut buffer = body.to_vec();
-        xor_keystream(self.key.as_bytes(), iv, &mut buffer);
+        xor_keystream(self.keys.cipher(), iv, &mut buffer);
         Ok(buffer)
     }
 }

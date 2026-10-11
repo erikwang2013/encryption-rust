@@ -44,6 +44,11 @@ tower = { version = "0.5", features = ["util"] }
 warp = { version = "0.4", features = ["test"] }
 # 基准测试：对比「本库封装」与「裸 crate」的开销（benches/crypto_bench.rs）
 criterion = "0.8"
+# ml-kem 的 deterministic 只服务本仓库的 NIST ACVP 定值向量（KAT）测试：
+# 它开启「从种子生成密钥对 / 确定性封装」接口。放这里后，cargo 只在构建本仓库
+# 的测试目标时启用它（feature 并集只在这时候发生）；使用者依赖本 crate 构建
+# 生产目标时不会拿到这个确定性接口，生产依赖图里少一个可误用的面。
+ml-kem = { version = "0.2.3", features = ["deterministic", "zeroize"] }
 
 [[bench]]
 name = "crypto_bench"
@@ -128,10 +133,9 @@ getrandom = { version = "0.4", features = ["sys_rng"] }
 
 # 后量子 KEM（FIPS 203 ML-KEM）。代际钉死 0.2.3：0.3.x 会拉 sha3 0.11 新代际，
 # 与上面「digest 0.10」的统一策略冲突（本 crate 自带 sha3 0.10.9 / rand_core 0.6）。
-# deterministic：开启从种子生成密钥对 / 确定性封装，供 NIST ACVP 定值向量（KAT）
-# 测试使用；zeroize：解析出的私钥与内部状态在 Drop 时清零（与上面各 zeroize
-# feature 同款做法）。
-ml-kem = { version = "0.2.3", features = ["deterministic", "zeroize"] }
+# zeroize：解析出的私钥与内部状态在 Drop 时清零（与上面各 zeroize feature 同款做法）。
+# deterministic（从种子生成密钥对 / 确定性封装）只在 KAT 测试里用，见 dev-dependencies。
+ml-kem = { version = "0.2.3", features = ["zeroize"] }
 
 # ── 非对称能力扩充：ECDSA（P-256 / P-384 / secp256k1）/ Ed25519 / X25519 ────
 # 统一钉在 RustCrypto「elliptic-curve 0.13 / signature 2 / sha2 0.10 / rand_core 0.6」

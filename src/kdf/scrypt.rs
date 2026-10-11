@@ -18,6 +18,12 @@ use scrypt::{Params, scrypt};
 use crate::contract::{Identified, PasswordBasedKdf};
 use crate::error::{Error, Result};
 
+/// 输出长度上限：与 [`crate::kdf::Argon2Kdf`]、[`crate::kdf::Pbkdf2Sha256`]
+/// 同一约定（32 位长度的 `u32::MAX`）。scrypt 自身只拒绝超过 (2^32−1)×32 字节
+/// 的输出，本上限把「先按请求分配、再必然失败」的巨量请求拦在
+/// `vec![0u8; length]` 之前。
+const MAX_OUTPUT_LEN: usize = u32::MAX as usize;
+
 /// scrypt 派生器（可复用）。
 #[derive(Debug, Clone, Copy)]
 pub struct ScryptKdf {
@@ -72,20 +78,20 @@ impl Identified for ScryptKdf {
 
 impl PasswordBasedKdf for ScryptKdf {
     fn derive_from_password(&self, password: &[u8], salt: &[u8], length: usize) -> Result<Vec<u8>> {
-        if length == 0 {
+        if length == 0 || length > MAX_OUTPUT_LEN {
             return Err(Error::InvalidOutputLength {
-                requested: 0,
-                max: usize::MAX,
+                requested: length,
+                max: MAX_OUTPUT_LEN,
             });
         }
 
         let mut output = vec![0u8; length];
         scrypt(password, salt, &self.params, &mut output)
-            // scrypt() 只拒绝 0 长度与超过 (2^32−1)×32 的输出；前置校验后
-            // 剩余失败仅为理论上限（先于它撞上分配失败），一并归入长度非法。
+            // 前置校验已把长度压到 MAX_OUTPUT_LEN 之内（远低于 scrypt() 自身
+            // 的 (2^32−1)×32 上限），此分支仅为防御性兜底，一并归入长度非法。
             .map_err(|_| Error::InvalidOutputLength {
                 requested: length,
-                max: usize::MAX,
+                max: MAX_OUTPUT_LEN,
             })?;
         Ok(output)
     }
@@ -155,7 +161,26 @@ mod tests {
             kdf.derive_from_password(b"pw", b"salt", 0).unwrap_err(),
             Error::InvalidOutputLength {
                 requested: 0,
-                max: usize::MAX
+                max: MAX_OUTPUT_LEN
+            }
+        );
+        // 上限之上：必须在 `vec![0u8; length]` 之前干净报错，而不是先申请
+        // 2^63 字节撞上 abort/OOM（修复前的行为）。
+        assert_eq!(
+            kdf.derive_from_password(b"pw", b"salt", usize::MAX / 2)
+                .unwrap_err(),
+            Error::InvalidOutputLength {
+                requested: usize::MAX / 2,
+                max: MAX_OUTPUT_LEN
+            }
+        );
+        // 边界：上限 + 1 即拒（上限本身会真分配 4 GiB，不在此断言）。
+        assert_eq!(
+            kdf.derive_from_password(b"pw", b"salt", MAX_OUTPUT_LEN + 1)
+                .unwrap_err(),
+            Error::InvalidOutputLength {
+                requested: MAX_OUTPUT_LEN + 1,
+                max: MAX_OUTPUT_LEN
             }
         );
     }

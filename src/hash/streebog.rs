@@ -3,62 +3,33 @@
 //! Streebog（ГОСТ Р 34.11-2012 / RFC 6986）：Streebog-256 输出 32 字节、
 //! Streebog-512 输出 64 字节。
 
-use streebog::{Digest, Streebog256, Streebog512};
+use streebog::{Streebog256, Streebog512};
 
-use crate::contract::{Hasher, Identified};
-use crate::error::Result;
+use crate::hash::{NamedDigest, hasher};
 
-/// Streebog-256 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Streebog256Hasher;
+hasher!(
+    Streebog256Hasher,
+    "streebog-256",
+    "Streebog-256 哈希器（无状态，可复用）。"
+);
+hasher!(
+    Streebog512Hasher,
+    "streebog-512",
+    "Streebog-512 哈希器（无状态，可复用）。"
+);
 
-impl Streebog256Hasher {
-    pub const IDENTIFIER: &'static str = "streebog-256";
-
-    pub fn new() -> Self {
-        Self
-    }
+impl NamedDigest for Streebog256Hasher {
+    type Core = Streebog256;
 }
 
-impl Identified for Streebog256Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Streebog256Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Streebog256::digest(data).to_vec())
-    }
-}
-
-/// Streebog-512 哈希器（无状态，可复用）。
-#[derive(Debug, Default, Clone, Copy)]
-pub struct Streebog512Hasher;
-
-impl Streebog512Hasher {
-    pub const IDENTIFIER: &'static str = "streebog-512";
-
-    pub fn new() -> Self {
-        Self
-    }
-}
-
-impl Identified for Streebog512Hasher {
-    fn identifier(&self) -> &str {
-        Self::IDENTIFIER
-    }
-}
-
-impl Hasher for Streebog512Hasher {
-    fn digest(&self, data: &[u8]) -> Result<Vec<u8>> {
-        Ok(Streebog512::digest(data).to_vec())
-    }
+impl NamedDigest for Streebog512Hasher {
+    type Core = Streebog512;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::contract::Hasher;
 
     /// ГОСТ Р 34.11-2012 附录 A.1（RFC 6986 A.1）的 M1 向量：63 字节 ASCII
     /// 数字串 "0123…012"（标准中记作 0x3231…，为小端字节序显示）。

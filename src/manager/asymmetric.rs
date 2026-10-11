@@ -2,154 +2,88 @@
 
 //! 非对称能力门面：签名（[`SignatureManager`]）与密钥协商（[`KeyAgreementManager`]）。
 //!
-//! 与 [`super`] 里的门面同构；单独成文件是为了让 `manager.rs` 保持在 500 行以内。
+//! 与 [`super`] 里其余六个门面同构，同样由 `manager_facade!` 宏生成；单独成文件
+//! 只是按用途分组——签名与协商属于非对称能力，与 [`super`] 的加密 / 哈希 / 派生
+//! 门面分开放更好翻。两个调用点写在 `manager.rs` 的宏定义之后：`macro_rules!`
+//! 是文本作用域，先定义后调用的顺序不是排版随意。
 
-use super::check_default;
-use crate::contract::{KeyAgreement, Signer};
-use crate::error::Result;
-use crate::registry::Registry;
-
-/// 签名门面。
-#[derive(Debug)]
-pub struct SignatureManager {
-    registry: Registry<Box<dyn Signer>>,
-    default_identifier: String,
-}
-
-impl SignatureManager {
-    pub fn new(
-        registry: Registry<Box<dyn Signer>>,
-        default_identifier: impl Into<String>,
-    ) -> Result<Self> {
-        let default_identifier = default_identifier.into();
-        check_default(
-            registry.has(&default_identifier),
-            "signer",
-            &default_identifier,
-        )?;
-        Ok(Self {
-            registry,
-            default_identifier,
-        })
-    }
-
+manager_facade! {
+    /// 签名门面。
+    SignatureManager, crate::contract::Signer, "signer",
     /// 返回十六进制签名。
-    pub fn sign(&self, message: &[u8], private_key_hex: &str) -> Result<String> {
-        self.sign_with(&self.default_identifier, message, private_key_hex)
-    }
-
-    pub fn sign_with(
-        &self,
-        identifier: &str,
-        message: &[u8],
-        private_key_hex: &str,
-    ) -> Result<String> {
-        self.registry
-            .get(identifier)?
-            .sign(message, private_key_hex)
-    }
-
-    pub fn verify(&self, message: &[u8], signature_hex: &str, public_key_hex: &str) -> Result<()> {
-        self.verify_with(
-            &self.default_identifier,
-            message,
-            signature_hex,
-            public_key_hex,
-        )
-    }
-
-    pub fn verify_with(
-        &self,
-        identifier: &str,
-        message: &[u8],
-        signature_hex: &str,
-        public_key_hex: &str,
-    ) -> Result<()> {
-        self.registry
-            .get(identifier)?
-            .verify(message, signature_hex, public_key_hex)
-    }
-
-    pub fn registry(&self) -> &Registry<Box<dyn Signer>> {
-        &self.registry
-    }
-
-    pub fn registry_mut(&mut self) -> &mut Registry<Box<dyn Signer>> {
-        &mut self.registry
-    }
-
-    pub fn default_identifier(&self) -> &str {
-        &self.default_identifier
-    }
-
-    pub fn set_default_identifier(&mut self, identifier: impl Into<String>) -> Result<()> {
-        let identifier = identifier.into();
-        check_default(self.registry.has(&identifier), "signer", &identifier)?;
-        self.default_identifier = identifier;
-        Ok(())
-    }
+    sign with sign_with(message: &[u8], private_key_hex: &str)
+        -> crate::error::Result<String>,
+    verify with verify_with(message: &[u8], signature_hex: &str, public_key_hex: &str)
+        -> crate::error::Result<()>,
 }
 
-/// 密钥协商门面。
-#[derive(Debug)]
-pub struct KeyAgreementManager {
-    registry: Registry<Box<dyn KeyAgreement>>,
-    default_identifier: String,
-}
-
-impl KeyAgreementManager {
-    pub fn new(
-        registry: Registry<Box<dyn KeyAgreement>>,
-        default_identifier: impl Into<String>,
-    ) -> Result<Self> {
-        let default_identifier = default_identifier.into();
-        check_default(
-            registry.has(&default_identifier),
-            "key agreement",
-            &default_identifier,
-        )?;
-        Ok(Self {
-            registry,
-            default_identifier,
-        })
-    }
-
+manager_facade! {
+    /// 密钥协商门面。
+    KeyAgreementManager, crate::contract::KeyAgreement, "key agreement",
     /// 返回定长共享秘密的十六进制。
-    pub fn agree(&self, private_key_hex: &str, peer_public_key_hex: &str) -> Result<String> {
-        self.agree_with(
-            &self.default_identifier,
-            private_key_hex,
-            peer_public_key_hex,
-        )
+    agree with agree_with(private_key_hex: &str, peer_public_key_hex: &str)
+        -> crate::error::Result<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::asymmetric::ed25519::Ed25519Signer;
+    use crate::asymmetric::x25519::X25519Agreement;
+    use crate::contract::{KeyAgreement, Signer};
+    use crate::error::Error;
+    use crate::registry::Registry;
+
+    /// 签名门面是纯转发：签一次、验一次通过，被改过的消息验签失败。
+    #[test]
+    fn signature_manager_round_trips_and_rejects_tampering() {
+        let mut registry: Registry<Box<dyn Signer>> = Registry::new("signer");
+        registry.register(Box::new(Ed25519Signer::new()));
+        let mut manager = SignatureManager::new(registry, Ed25519Signer::IDENTIFIER).unwrap();
+
+        let pair = Ed25519Signer::generate_key_pair_hex().unwrap();
+        let signature = manager.sign(b"message", &pair.private_key_hex).unwrap();
+        manager
+            .verify(b"message", &signature, &pair.public_key_hex)
+            .unwrap();
+        assert!(
+            manager
+                .verify(b"tampered", &signature, &pair.public_key_hex)
+                .is_err()
+        );
+
+        // 默认标识改不动：`set_default_identifier` 与 `new` 用同一个 kind 文案
+        //（宏里 `$kind` 的第二处展开）。
+        assert_eq!(
+            manager.set_default_identifier("missing").unwrap_err(),
+            Error::UnknownIdentifier {
+                kind: "signer",
+                identifier: "missing".to_string(),
+            }
+        );
+
+        // 门面的 Debug 由 derive 给出，注册表只打印能力名与标识列表：私钥不出现。
+        let text = format!("{manager:?}");
+        assert!(text.contains("Registry"), "{text}");
+        assert!(!text.contains(&pair.private_key_hex), "{text}");
     }
 
-    pub fn agree_with(
-        &self,
-        identifier: &str,
-        private_key_hex: &str,
-        peer_public_key_hex: &str,
-    ) -> Result<String> {
-        self.registry
-            .get(identifier)?
-            .agree(private_key_hex, peer_public_key_hex)
-    }
+    /// 协商门面同样是纯转发：两端各用自己的私钥与对方公钥，导出同一个共享秘密。
+    #[test]
+    fn key_agreement_manager_agrees_on_the_same_secret() {
+        let mut registry: Registry<Box<dyn KeyAgreement>> = Registry::new("key agreement");
+        registry.register(Box::new(X25519Agreement::new()));
+        let manager = KeyAgreementManager::new(registry, X25519Agreement::IDENTIFIER).unwrap();
 
-    pub fn registry(&self) -> &Registry<Box<dyn KeyAgreement>> {
-        &self.registry
-    }
+        let alice = X25519Agreement::generate_key_pair_hex().unwrap();
+        let bob = X25519Agreement::generate_key_pair_hex().unwrap();
 
-    pub fn registry_mut(&mut self) -> &mut Registry<Box<dyn KeyAgreement>> {
-        &mut self.registry
-    }
-
-    pub fn default_identifier(&self) -> &str {
-        &self.default_identifier
-    }
-
-    pub fn set_default_identifier(&mut self, identifier: impl Into<String>) -> Result<()> {
-        let identifier = identifier.into();
-        check_default(self.registry.has(&identifier), "key agreement", &identifier)?;
-        self.default_identifier = identifier;
-        Ok(())
+        let from_alice = manager
+            .agree(&alice.private_key_hex, &bob.public_key_hex)
+            .unwrap();
+        let from_bob = manager
+            .agree(&bob.private_key_hex, &alice.public_key_hex)
+            .unwrap();
+        assert_eq!(from_alice, from_bob);
     }
 }

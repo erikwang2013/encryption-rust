@@ -15,7 +15,8 @@
 //! GB/T 38636-2020 附录 A 只有模式定义（算法 4 / 5），未附数值向量。
 
 use ctr::Ctr32BE;
-use ctr::cipher::{Block, BlockEncrypt, KeyInit, KeyIvInit, StreamCipher};
+use ctr::CtrCore;
+use ctr::cipher::{Block, BlockEncrypt, InnerIvInit, KeyInit, StreamCipher};
 use ghash::GHash;
 use ghash::universal_hash::UniversalHash;
 use rand_core::{OsRng, RngCore};
@@ -31,28 +32,36 @@ const NONCE_LEN: usize = 12;
 const TAG_LEN: usize = 16;
 
 /// SM4-GCM 加密器。
+///
+/// SM4 实例在构造时就建立（轮密钥只展开一次），加解密共用：J0 掩码与 GHASH
+/// 直接引用它，CTR 流克隆它（克隆只是复制已展开的轮密钥）。此前每次
+/// `seal` / `open` 都要重建 SM4，`seal` 一次调用甚至建两遍。
 #[derive(Debug)]
 pub struct Sm4GcmEncryptor {
-    key: Key<16>,
+    cipher: Sm4,
 }
 
 impl Sm4GcmEncryptor {
     pub const IDENTIFIER: &'static str = "sm4-gcm";
 
     pub fn new(key: [u8; 16]) -> Self {
-        Self { key: Key::new(key) }
+        Self {
+            cipher: sm4_cipher(&key),
+        }
     }
 
     pub fn from_slice(key: &[u8]) -> Result<Self> {
+        // 借 Key<N> 做长度校验；临时副本随其 Drop 清零。
+        let key = Key::<16>::from_slice(key, LABEL)?;
         Ok(Self {
-            key: Key::from_slice(key, LABEL)?,
+            cipher: sm4_cipher(key.as_bytes()),
         })
     }
 
     /// 固定 nonce 加密（仅测试用），返回与 [`SymmetricCipher::encrypt`] 相同的整帧。
     #[cfg(test)]
     pub(crate) fn encrypt_with_nonce(&self, nonce: &[u8; NONCE_LEN], plaintext: &[u8]) -> Vec<u8> {
-        let (ciphertext, tag) = seal(self.key.as_bytes(), nonce, b"", plaintext);
+        let (ciphertext, tag) = seal(&self.cipher, nonce, b"", plaintext);
         pack(nonce, &tag, &ciphertext)
     }
 }
@@ -68,7 +77,7 @@ impl SymmetricCipher for Sm4GcmEncryptor {
         let mut nonce = [0u8; NONCE_LEN];
         OsRng.fill_bytes(&mut nonce);
 
-        let (ciphertext, tag) = seal(self.key.as_bytes(), &nonce, b"", plaintext);
+        let (ciphertext, tag) = seal(&self.cipher, &nonce, b"", plaintext);
         Ok(pack(&nonce, &tag, &ciphertext))
     }
 
@@ -85,8 +94,7 @@ impl SymmetricCipher for Sm4GcmEncryptor {
         let nonce: &[u8; NONCE_LEN] = nonce.try_into().expect("length was verified");
         let tag: &[u8; TAG_LEN] = tag.try_into().expect("length was verified");
 
-        open(self.key.as_bytes(), nonce, b"", ct, tag)
-            .ok_or(Error::DecryptionFailed { label: LABEL })
+        open(&self.cipher, nonce, b"", ct, tag).ok_or(Error::DecryptionFailed { label: LABEL })
     }
 }
 
@@ -122,6 +130,14 @@ fn ctr_start_block(nonce: &[u8; NONCE_LEN]) -> [u8; 16] {
     block
 }
 
+/// `inc32(J0)` 起点的 CTR 密钥流：把缓存实例的轮密钥克隆给 CTR 核，
+/// 不再重跑一遍 SM4 密钥编排（克隆只是复制已展开的轮密钥）。
+fn ctr_keystream(cipher: &Sm4, nonce: &[u8; NONCE_LEN]) -> Ctr32BE<Sm4> {
+    let counter = CtrCore::inner_iv_slice_init(cipher.clone(), &ctr_start_block(nonce))
+        .expect("counter block length is fixed at 16");
+    Ctr32BE::from_core(counter)
+}
+
 /// GHASH 状态：喂入 A（零填充）、C（零填充）与 128 位长度块
 /// （`[len(A)]64‖[len(C)]64`，比特数，大端）。
 fn ghash_state(cipher: &Sm4, aad: &[u8], ciphertext: &[u8]) -> GHash {
@@ -141,22 +157,18 @@ fn ghash_state(cipher: &Sm4, aad: &[u8], ciphertext: &[u8]) -> GHash {
 
 /// GCM-AEK（GB/T 38636-2020 附录 A 算法 4）：返回（密文, tag）。
 fn seal(
-    key: &[u8; 16],
+    cipher: &Sm4,
     nonce: &[u8; NONCE_LEN],
     aad: &[u8],
     plaintext: &[u8],
 ) -> (Vec<u8>, [u8; TAG_LEN]) {
-    let cipher = sm4_cipher(key);
-
     // ponytail: apply_keystream 在密钥流耗尽（约 2^36 字节）时 panic；能驻留
     // 内存的单次载荷远达不到该上限，真要分片加密时改走 try_apply_keystream。
     let mut ciphertext = plaintext.to_vec();
-    Ctr32BE::<Sm4>::new_from_slices(key, &ctr_start_block(nonce))
-        .expect("key and counter lengths are fixed")
-        .apply_keystream(&mut ciphertext);
+    ctr_keystream(cipher, nonce).apply_keystream(&mut ciphertext);
 
-    let mask = j0_mask(&cipher, nonce);
-    let s = ghash_state(&cipher, aad, &ciphertext).finalize();
+    let mask = j0_mask(cipher, nonce);
+    let s = ghash_state(cipher, aad, &ciphertext).finalize();
     let mut tag = [0u8; TAG_LEN];
     for ((byte, m), s) in tag.iter_mut().zip(mask.iter()).zip(s.iter()) {
         *byte = m ^ s;
@@ -167,28 +179,24 @@ fn seal(
 /// GCM-ADK（GB/T 38636-2020 附录 A 算法 5）：tag 不符返回 `None`
 /// （恒时比较，不向前端泄露「哪一步错了」）。先验 tag，通过后才解密。
 fn open(
-    key: &[u8; 16],
+    cipher: &Sm4,
     nonce: &[u8; NONCE_LEN],
     aad: &[u8],
     ciphertext: &[u8],
     tag: &[u8; TAG_LEN],
 ) -> Option<Vec<u8>> {
-    let cipher = sm4_cipher(key);
-
     // 期望的 GHASH 输出 S = T ⊕ E_K(J0)（由 T = E_K(J0) ⊕ S 移项）。
-    let mask = j0_mask(&cipher, nonce);
+    let mask = j0_mask(cipher, nonce);
     let mut expected = [0u8; TAG_LEN];
     for ((byte, t), m) in expected.iter_mut().zip(tag.iter()).zip(mask.iter()) {
         *byte = t ^ m;
     }
-    ghash_state(&cipher, aad, ciphertext)
+    ghash_state(cipher, aad, ciphertext)
         .verify(Block::<GHash>::from_slice(&expected))
         .ok()?;
 
     let mut plaintext = ciphertext.to_vec();
-    Ctr32BE::<Sm4>::new_from_slices(key, &ctr_start_block(nonce))
-        .expect("key and counter lengths are fixed")
-        .apply_keystream(&mut plaintext);
+    ctr_keystream(cipher, nonce).apply_keystream(&mut plaintext);
     Some(plaintext)
 }
 
@@ -233,18 +241,20 @@ mod tests {
         let aad: [u8; 20] = hex_array(KAT_AAD);
         let expected_ciphertext: [u8; 64] = hex_array(KAT_CIPHERTEXT);
         let expected_tag: [u8; 16] = hex_array(KAT_TAG);
+        // seal / open 改为吃缓存好的 SM4 实例（与生产路径一致）。
+        let cipher = sm4_cipher(&key);
 
-        let (ciphertext, tag) = seal(&key, &nonce, &aad, &plaintext);
+        let (ciphertext, tag) = seal(&cipher, &nonce, &aad, &plaintext);
         assert_eq!(ciphertext, expected_ciphertext);
         assert_eq!(tag, expected_tag);
 
         // 解密侧同样对齐：正确 tag 通过、改一位即拒绝。
-        let plaintext_back = open(&key, &nonce, &aad, &ciphertext, &tag).unwrap();
+        let plaintext_back = open(&cipher, &nonce, &aad, &ciphertext, &tag).unwrap();
         assert_eq!(plaintext_back, plaintext);
 
         let mut tampered = expected_tag;
         tampered[0] ^= 0x01;
-        assert_eq!(open(&key, &nonce, &aad, &ciphertext, &tampered), None);
+        assert_eq!(open(&cipher, &nonce, &aad, &ciphertext, &tampered), None);
     }
 
     #[test]
