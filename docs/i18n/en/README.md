@@ -92,8 +92,8 @@ Cryptographic building blocks in the Rust ecosystem have long been scattered: AE
 
 - **Eight capability families, one shape**: symmetric encryption / asymmetric encryption / hashing / key derivation / password-based derivation / signatures / key agreement / key encapsulation — each family follows the same contract (trait) → registry (Registry) → facade (Manager) pattern, so learning one family means learning them all.
 - **Ten identifiers out of the box**: `aes-256-gcm`, `sodium-xchacha20`, `aes-256-cbc-hmac`, `sm4-cbc`, `zuc-128`, `sm2`, `sha256`, `sm3`, `hkdf-sha256`, `pbkdf2-sha256` (identical to the PHP version's identifiers — migrating costs zero renames).
-- **Extended algorithm surface (1.2.0)**: beyond the factory defaults there are 30+ more identifiers — 9 symmetric, 8 hashes, 2 password KDFs, 1 asymmetric cipher, 5 signatures (including SM2 signing), 4 key-agreement, 3 key-encapsulation (post-quantum ML-KEM); all registered manually, leaving the factory and the PHP alignment surface untouched.
-- **Master key factory**: `EncryptionManagerFactory::from_master_key` — one 32-byte master key derives an independent subkey per algorithm from purpose labels, assembling every algorithm in one go and ruling out key reuse.
+- **Extended algorithm surface (1.2.0)**: beyond the factory defaults there are 30+ more identifiers — 9 symmetric, 8 hashes, 2 password KDFs, 1 asymmetric cipher, 5 signatures (including SM2 signing), 4 key-agreement, 3 key-encapsulation (post-quantum ML-KEM). The **nine extended symmetric algorithms are in the factory** (`from_master_key_all` / `register_extensions`, each with its own derived label); the remaining extensions are assembled through the registry, leaving the PHP alignment surface untouched.
+- **Master key factory**: `EncryptionManagerFactory::from_master_key` registers the five defaults; `from_master_key_all` adds the nine extended symmetric algorithms (fourteen total). One 32-byte master key derives an independent subkey per algorithm from purpose labels — **the extensions have a derivation path too**, so there is no need to invent a key or reuse another algorithm's subkey.
 - **Request guard + framework adapters**: native Rust plus 8 opt-in features for axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat; declare `Guard` as a handler parameter and encrypt/decrypt right there.
 - **Chinese national standards as first-class citizens**: SM2 / SM3 / SM4 / ZUC go through the same register-and-facade path as AES / SHA; SM1 / SM7 / SM9 return an explicit error rather than staying silent.
 - **Secure defaults**: random IV / nonce, AEAD or encrypt-then-MAC, constant-time comparison, key material zeroized on Drop, Debug redaction, and no reason disclosed on decryption failure.
@@ -240,7 +240,7 @@ Key rotation, migration, and every failure variant are in the "Maintenance & fai
 | `sm4-gcm` | `Sm4GcmEncryptor` | 16 bytes | `v1 \| Nonce(12) \| Tag(16) \| ciphertext`, SM4 + GCM assembled in-crate (anchored by RFC 8998 vectors) |
 | `zuc-256` | `Zuc256Encryptor` | 32 bytes | `v1 \| IV(23) \| MAC(32) \| ciphertext`, ZUC-256 stream cipher (32-byte key / 23-byte IV) |
 
-> The first five rows are registered by the master key factory; the rest are extensions from this release (registered manually, not part of the factory).
+> The first five rows are registered by `from_master_key` (the subkeys of existing data are frozen there and never change); the nine extension rows ship with `from_master_key_all`, each with an independent subkey derived by HKDF-Expand from an extension-domain PRK. `register_extensions` adds just the extensions to an existing registry.
 
 ### Asymmetric encryption (`AsymmetricCipher`)
 
@@ -325,7 +325,7 @@ let manager = EncryptionManager::new(registry, "aes-256-gcm")?;
 let blob = manager.encrypt(b"\xe6\x95\xb0\xe6\x8d\xae")?;
 ```
 
-Master key factory: `EncryptionManagerFactory::from_master_key(&master_key32, "aes-256-gcm")` registers all five algorithms — **aes-256-gcm**, **aes-256-cbc-hmac**, **sodium-xchacha20**, **sm4-cbc**, **zuc-128** — each of them using an independent subkey derived from a purpose label.
+Master key factory: `from_master_key(&master_key32, "aes-256-gcm")` registers the five algorithms — **aes-256-gcm**, **aes-256-cbc-hmac**, **sodium-xchacha20**, **sm4-cbc**, **zuc-128** — each with an independent subkey derived from a purpose label; `from_master_key_all` adds the nine extended symmetric algorithms (fourteen total), whose subkeys are derived by HKDF-Expand in a domain separated from the default labels.
 
 ### 2. Asymmetric encryption (SM2)
 

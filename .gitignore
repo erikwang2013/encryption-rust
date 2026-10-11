@@ -13,3 +13,8 @@
 
 # Rust
 /target
+
+# agent 工具的临时 worktree（每个都带一份完整 target/）。它们是本机的 git
+# worktree，由 `git worktree list` 管理，不进版本库；此前未忽略，导致
+# `git status` 一直挂着一坨未跟踪目录。
+.claude/worktrees/

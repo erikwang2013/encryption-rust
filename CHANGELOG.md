@@ -4,6 +4,39 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [Unreleased]
+
+> 建议版本号 **1.3.0**：新增公开 API（`from_master_key_all` / `register_extensions`）属向后兼容的功能新增；其余为内部重构与缺陷修复，公开类型名与方法签名均未变。
+
+### Added
+- `EncryptionManagerFactory::from_master_key_all` 与 `register_extensions`：**九个扩展对称算法（`chacha20-poly1305-ietf`、`aes-256-gcm-siv`、`camellia-256-cbc-hmac`、`aria-256-cbc-hmac`、`threefish-512-cbc-hmac`、`kuznyechik-256-cbc-hmac`、`salsa20`、`sm4-gcm`、`zuc-256`）自此进工厂并各带独立派生子密钥**。此前它们不在工厂、也没有派生路径，按 README 手工装配的使用者只能自造密钥或复用别的算法的子密钥——后者直接违反本库「密钥永不跨算法复用」的不变量
+- 扩展子密钥派生用 HKDF-Expand（RFC 5869），域与默认标签隔离：`PRK = HMAC-SHA256(主密钥, "dgn:derive-ext")`，`子密钥 = HKDF-Expand(PRK, info = "dgn:derive-ext:<标识>")`。默认五个算法的派生方案**逐字节冻结不变**，存量密文照旧解开（Threefish-512 需要 64 字节密钥，单次 HMAC-SHA256 给不出来，HKDF-Expand 是标准构造，好过自造串联规则）
+- SM2 互通定值向量：`GM/T 0003.5-2012 附录 C` 加密示例（明文 `"encryption standard"`）与附录 A 签名示例，取自 OpenSSL 官方测试文件 `test/sm2_internal_test.c`；DER 形式到本库原始 `C1‖C3‖C2` 布局的转换逐项写明并独立复算。SM2 此前是**唯一没有外部锚点**的算法族（13 个测试全是自洽往返，布局写错也照样全绿）
+- 工厂派生定值向量：五个默认标签 + 九个扩展标签的派生结果全部冻结为常量（此前改标签或改参数顺序会让存量数据全解不开，而所有测试仍绿）
+- `SignatureManager` / `KeyAgreementManager` 的往返测试（这两个门面此前全仓库零引用）；八个门面的 `kind` 错误字符串全部钉死
+- 基准组重做：`wrapper-vs-raw`（两组基线都在计时闭包内建 cipher，此前裸 crate 建在循环外、封装每次重建，190–230 ns 的密钥扩展被误记成「封装差价」）、`short-payload`（11 字节——本库真实用例）、`etm/aes-256-cbc-hmac`、`hex`
+
+### Fixed
+- **`KeyPairHex` 的 `Debug` 会打印私钥明文**（`src/asymmetric/mod.rs` 与 `src/guomi/sm2.rs` 各有一份逐字节相同的定义，都 derive 了 `Debug`）：`print!("{pair:?}")` / `tracing::debug!(?pair)` 即可把 RSA / SM2 / Ed25519 / ECDSA / X25519 的私钥打进日志，而 README 把「Debug 遮蔽」列为安全默认值、`Key<N>` 也确实做到了——唯独所有 `generate_key_pair_hex()` 的返回值没做到。现改为手写遮蔽 `Debug`（打印 `***`），并删掉重复定义（`guomi::KeyPairHex` 改为再导出，导入路径不变）
+- ZUC-128 / ZUC-256 的 `buffer.len() * 8` 在 **32 位目标**（wasm32 / i686 / armv7）上 512 MiB 载荷即回绕，底层实现拿到回绕后的 `bit_len` 会把超出部分的密文**静默清零**（数据毁坏）。改用 `checked_mul(8)` 并在回绕时返回错误
+- PBKDF2 / scrypt 的输出长度上限原为 `usize::MAX`（只挡 `length == 0`），`derive_from_password(pw, salt, usize::MAX/2)` 会尝试分配 2^63 字节而 abort。改为 `u32::MAX`，与 Argon2 已有取值一致
+- 主密钥临时副本不再裸 drop：`factory.rs` 的栈拷贝与 `guard.rs` 的 `decode_master_key` 中间 `Vec` 改用 `Zeroizing` / 显式 `zeroize()`（此前核心转储或交换分区可捞出主密钥，而派生子密钥本是清零的）
+- `hex_decode` 改用 256 项全表。**紧凑算术写法是错的**：`(c & 0x0f) | (c >> 6) * 9` 这类会把 `':'`（0x3a→10）与 `'Z'`（0x5a→11）误判成合法十六进制字符；新增遍历全部 256 个字节取值的接受集测试把它钉住
+
+### Changed
+- **性能：EtM 的 MAC 密钥不再每次调用重算。** `mac_key` 只由密文密钥决定，此前每个 `pack` / `unpack_and_verify` 都重做一次完整 HMAC-SHA256（即每次操作两次 HMAC）。现随加密器构造派生一次、存进 `EtmKeys`（密文密钥与 MAC 密钥都 Drop 清零）。影响共享该层的九个算法（aes-256-cbc / camellia / aria / kuznyechik / threefish / sm4 / zuc-128 / zuc-256 / salsa20），实测**每次调用省 15–18%**
+- **性能：块密码实例改为构造时建立。** AES-GCM / AES-GCM-SIV / ChaCha20-Poly1305-IETF / XChaCha20 / SM4-GCM 此前每次加解密都重跑一遍密钥编排；实测 **190–230 ns/次**，短载荷下占计算量的 62%（解密方向没有随机数开销挡着，占比更高）。轮密钥仍随结构体 Drop 清零（`zeroize` feature 已开）
+- **性能：`hex_encode` 改查表**，不再每字节走一次 `core::fmt`：实测 32 B 1836→210 ns、1 KiB 62→4.2 µs、1 MiB 42.7→3.6 ms
+- **结构：六个 CBC-HMAC 加密器合并为一个泛型实现** `CbcHmacEncryptor<C, KEY_LEN>`。`aes256cbc` / `aria256cbc` / `camellia256cbc` / `kuznyechikcbc` / `threefish512cbc` / `guomi/sm4` 此前是六份逐字节相同的代码（非测试正文各 47 行，逐行比对 94–98% 相同），任何边界修正都要改六遍；现泛型参数只区分块密码与密钥长度，IV 长度取自块长（Threefish-512 为 64），六个公开类型名以 `type` 别名保持原样，各标准的裸块密码定值向量（SM4 GB/T 32907 / Camellia RFC 3713 / ARIA RFC 5794 / Kuznyechik RFC 7801 / Threefish 官方 KAT）合并进一处测试
+- **结构：八个门面合并为一个 `manager_facade!` 宏**，607 行 → 345 行。此前每个门面都是同构的 `struct` + `new` + 四个访问器 + `x` / `x_with` 转发对，`manager/asymmetric.rs` 存在的理由竟是「让 `manager.rs` 保持在 500 行以内」——行数是被样板撑起来的
+- **结构：七个哈希器的样板合并为 `hasher!` 宏 + `NamedDigest` blanket impl**。SM3（`sm3` crate 属 digest 0.11 代际）与 BLAKE3（独立实现，不走 digest trait）各自实现 `Hasher`，其余五个摘要共用一个 blanket
+- `ml-kem` 的 `deterministic` feature 从 `[dependencies]` 移到 `[dev-dependencies]`：它只服务 NIST ACVP 定值向量测试，不该进使用者的生产依赖图
+- 新增 `#![forbid(unsafe_code)]`——全库本就不含 `unsafe`，改由编译器强制
+- 跨算法不变量测试（互不通用 / 篡改必败 / IV 每次新）改用 `from_master_key_all`，覆盖面从 5 个算法扩到 **14 个**；新增「扩展子密钥彼此独立」「换主密钥后扩展密文解不开」「默认五算法子密钥未被扰动」三条不变量
+- README（中英）同步：扩展算法不再描述为「手动注册、不进工厂」，补 `from_master_key_all` / `register_extensions` 的装配方式与两套派生方案的说明
+- `SECURITY.md` 新增「Known limitations in this library」：如实说明工厂派生过程中**清不掉**的那部分状态——`hkdf` 0.12 与 `hmac` 0.12 都不提供 `zeroize` feature，故 `Hkdf` 内部的 PRK 副本与 HMAC 的 ipad/opad 填充永不擦除，主密钥栈拷贝被移出后也无法保证清零。加密器**持有**的东西（`Key<N>` / `EtmKeys` / 缓存 cipher）照旧全部 Drop 清零。影响边界与规避建议（主密钥放 KMS/HSM 按需派生）一并写明
+- `.gitignore` 补 `.claude/worktrees/`（agent 工具的本机 git worktree，此前一直挂在 `git status` 的未跟踪列表里）
+
 ## [1.2.1] - 2026-10-10
 
 ### Changed

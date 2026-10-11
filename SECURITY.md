@@ -39,6 +39,10 @@ Out of scope:
 
 - **RUSTSEC-2023-0071 — "Marvin" timing side channel in the `rsa` crate.** No upstream patch exists (`patched = []`; both `rsa` 0.9.x and 0.10.0-rc are affected; tracked in RustCrypto/RSA#626, #680, #702), so it is whitelisted in CI with an explicit exit condition. This library's `rsa-oaep-sha256` decrypts through `decrypt_blinded` (the mitigation direction acknowledged by the advisory), but **prefer ECDH / X25519 / Ed25519 / ML-KEM for network-exposed settings** — treat RSA-OAEP as an interop / local-use tool. This whitelist entry will be removed when the upstream fix lands or when this library drops the algorithm.
 
+## Known limitations in this library
+
+- **Factory derivation intermediates are not zeroized.** The README lists "密钥材质 Drop 清零" as a security default, and it holds for everything the encryptors *hold*: `Key<N>` (`src/key.rs`), the `EtmKeys` pair (cipher key + derived MAC key), and the cached block-cipher objects all zeroize their state on drop (their `zeroize` features are enabled in `Cargo.toml`). What cannot be scrubbed is the *transient* state inside two dependencies: `hkdf` 0.12 exposes no `zeroize` feature (only `std`), and `hmac` 0.12 exposes only `reset` / `std` — so the `Hkdf` struct's internal PRK copy and HMAC's ipad/opad pads are never wiped, and moved-from stack slots of the master-key copies cannot be guaranteed zeroed. Impact is bounded: it requires an attacker who can already read this process's freed heap, swap, or a core dump. If that is in your threat model, keep the master key in a KMS / HSM and derive on demand rather than long-lived in-process.
+
 ## What this library does not protect against
 
 Transport security (use TLS), application-level authorisation, and key storage are outside its remit. Losing the master key means losing the data — there is no recovery path, by design.

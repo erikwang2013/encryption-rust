@@ -92,8 +92,8 @@ Rust 生态中密码学实现长期分散：AES 用 `aes-gcm`、流密码用 `ch
 
 - **八族能力，一套结构**：对称加密 / 非对称加密 / 哈希 / 密钥派生 / 口令派生 / 签名 / 密钥协商 / 密钥封装 —— 每族都是「契约（trait）→ 注册表（Registry）→ 门面（Manager）」的同一形状，学会一族就会全部。
 - **十个开箱标识**：`aes-256-gcm`、`sodium-xchacha20`、`aes-256-cbc-hmac`、`sm4-cbc`、`zuc-128`、`sm2`、`sha256`、`sm3`、`hkdf-sha256`、`pbkdf2-sha256`（与 PHP 版标识一致，迁移零改名成本）。
-- **扩展算法面（1.2.0）**：工厂默认集之外另有 30 余个扩展标识——对称 9、哈希 8、口令派生 2、非对称 1、签名 5（含 SM2 签名能力）、密钥协商 4、密钥封装 3（ML-KEM 后量子）；全部手动注册，工厂与 PHP 对齐面不受影响。
-- **主密钥工厂**：`EncryptionManagerFactory::from_master_key` —— 一把 32 字节主密钥按用途标签派生各算法独立子密钥，一次装配全部算法，杜绝密钥复用。
+- **扩展算法面（1.2.0）**：工厂默认集之外另有 30 余个扩展标识——对称 9、哈希 8、口令派生 2、非对称 1、签名 5（含 SM2 签名能力）、密钥协商 4、密钥封装 3（ML-KEM 后量子）。其中**九个扩展对称算法已进工厂**（`from_master_key_all` / `register_extensions`，各带独立派生标签）；其余扩展标识经注册表装配，与 PHP 对齐面不受影响。
+- **主密钥工厂**：`EncryptionManagerFactory::from_master_key` 注册五个默认算法；`from_master_key_all` 追加九个扩展对称算法（共十四个）。一把 32 字节主密钥按用途标签为每个算法派生独立子密钥——**扩展算法同样有派生路径**，不必自造密钥、更不必复用别的算法的子密钥。
 - **请求守卫 Guard + 框架适配**：原生 Rust 与 axum / actix-web / rocket / poem / salvo / warp / bee-rust / e-cat 共 8 个 opt-in feature；处理器参数直接声明 `Guard` 即可加解密。
 - **国密一等公民**：SM2 / SM3 / SM4 / ZUC 与 AES / SHA 走同一条注册-门面链路；SM1 / SM7 / SM9 给出明确错误而非静默。
 - **安全默认值**：随机 IV / nonce、AEAD 或 encrypt-then-MAC、常量时间比对、密钥材质 Drop 清零、Debug 遮蔽、解密失败不区分原因。
@@ -240,7 +240,7 @@ let phone = manager.decrypt(&stored)?;
 | `sm4-gcm` | `Sm4GcmEncryptor` | 16 字节 | `v1 \| Nonce(12) \| Tag(16) \| 密文`，SM4 + GCM 组装（RFC 8998 向量锚定） |
 | `zuc-256` | `Zuc256Encryptor` | 32 字节 | `v1 \| IV(23) \| MAC(32) \| 密文`，ZUC-256 流密码（32 字节密钥 / 23 字节 IV） |
 
-> 前五行由主密钥工厂默认注册；其余为本批扩展实现（手动 `register`，不进工厂）。
+> 前五行由 `from_master_key` 注册（存量数据的子密钥由此冻结，永不改动）；九行扩展由 `from_master_key_all` 一并注册，各用 HKDF-Expand 从扩展域 PRK 派生独立子密钥。两者也可只用 `register_extensions` 往已有注册表里补。
 
 ### 非对称加密（`AsymmetricCipher`）
 
@@ -325,7 +325,7 @@ let manager = EncryptionManager::new(registry, "aes-256-gcm")?;
 let blob = manager.encrypt(b"\xe6\x95\xb0\xe6\x8d\xae")?;
 ```
 
-主密钥工厂：`EncryptionManagerFactory::from_master_key(&master_key32, "aes-256-gcm")` 一次注册 **aes-256-gcm**、**aes-256-cbc-hmac**、**sodium-xchacha20**、**sm4-cbc**、**zuc-128** 五个算法，各用按用途标签派生的独立子密钥。
+主密钥工厂：`from_master_key(&master_key32, "aes-256-gcm")` 一次注册 **aes-256-gcm**、**aes-256-cbc-hmac**、**sodium-xchacha20**、**sm4-cbc**、**zuc-128** 五个算法，各用按用途标签派生的独立子密钥；`from_master_key_all` 再补上九个扩展对称算法（共十四个），扩展子密钥走 HKDF-Expand，派生域与默认标签隔离。
 
 ### 2. 非对称加密（SM2）
 
@@ -446,7 +446,7 @@ match manager.decrypt(&stored) {
 
 ### 8. 扩展算法：签名 / 密钥协商 / 后量子 KEM
 
-扩展实现不进主密钥工厂（工厂默认集与 PHP 对齐面保持不变），在注册表上手动装配即可；密钥、签名、密文与共享密钥均为十六进制字符串。全部扩展实现见各模块文档（`encryption::encryptor` / `hash` / `kdf` / `asymmetric` / `pqc` / `guomi`）。
+扩展实现按族的装配方式不同：九个扩展对称算法可由 `EncryptionManagerFactory::register_extensions` 连同派生好的子密钥一并注册（**推荐**——手工复用别的算法的子密钥会破坏「密钥永不跨算法复用」）；哈希 / 口令派生 / 非对称 / 签名 / 密钥协商 / 密钥封装这些无状态或每次传入密钥的能力，在注册表上手动装配即可。密钥、签名、密文与共享密钥均为十六进制字符串。全部扩展实现见各模块文档（`encryption::encryptor` / `hash` / `kdf` / `asymmetric` / `pqc` / `guomi`）。
 
 ```rust
 use encryption::asymmetric::Ed25519Signer;
