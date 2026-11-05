@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
 <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1280 640" width="1280" height="640" role="img"
      aria-labelledby="spTitle spDesc"
-     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+     font-family="system-ui, sans-serif">
   <title id="spTitle">encryption-rust — GitHub 社交预览</title>
   <desc id="spDesc">encryption-rust 项目：宠物 Locky（持金钥匙的小锁）与标语。用于 GitHub 仓库 Social preview（1280×640）。</desc>
 

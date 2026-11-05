@@ -4,6 +4,21 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.1] - 2026-11-05
+
+> 安全补丁与仓库清理；公开 API、密文格式与派生方案均未变。按 semver 为 patch。
+
+### Security
+- **依赖漏洞收敛：`cargo audit` 19 → 2。** `p256` / `p384` / `k256` 升级到 0.14 代际（elliptic-curve 0.14 / crypto-bigint 0.7.10 / signature 3），修复 RUSTSEC-2026-0387（crypto-bigint 多处常量时间缺陷，影响 ECDSA 签名与 ECDH 私钥运算；0.5 线无补丁）；`ctutils` 0.4.8；`zstd` 0.13.4 / 0.14.3（`zstd-safe` 7.4.0 / 8.2.0、`zstd-sys` 2.1.2）；`rustls` 0.23.46、`rustls-webpki` 0.103.16、`webpki-roots` / `webpki-root-certs` 1.0.11；`tokio` 1.54.1（RUSTSEC-2026-0386 unsound）。剩余两条为已知且 CI 已白名单：`h2` 0.3.27（actix-web / rocket 可选传递依赖，0.3 线无补丁）与 `rsa` 0.9.10（上游无补丁，解密走 `decrypt_blinded` 缓解）
+- ECDH / ECDSA 密钥生成改用 `getrandom::SysRng`（rand_core 0.10 的可失败系统随机源），与 elliptic-curve 0.14 对齐；失败上抛 `EncryptionFailed`，不 panic
+
+### Removed
+- 移除仓库中的 ruflo 运行期产物：`ruvector.db`、`.swarm/` 记忆库、`.claude-flow/metrics/`、`memory-package.json`、`security/audit-status.json`；`.gitignore` 补齐对应规则
+- 移除 `ASSETS-LICENSE.md` / README 中不存在的第三方素材引用（Go Gopher、`font/LICENSE-DejaVu.txt`）
+
+### Changed
+- 设计图（架构 / 功能 / 生命周期，中英）与社交预览的字体栈改为通用 `system-ui` / `ui-monospace`，不再引用 `Segoe UI` / `Roboto` / `Helvetica Neue` / `Arial` / `Menlo` / `Consolas` 等具名字体；同步重绘 `docs/social-preview.png`
+
 ## [1.3.0] - 2026-10-11
 
 > 新增公开 API（`from_master_key_all` / `register_extensions`）属向后兼容的功能新增；其余为内部重构与缺陷修复，公开类型名与方法签名均未变。按 semver 为 minor。

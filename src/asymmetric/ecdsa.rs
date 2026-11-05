@@ -16,11 +16,14 @@
 //! 适合以签名字节做去重 / 缓存键的场景。RFC 6979 原始向量中 s 高于 n/2 的
 //! 条目，测试按归一化后的期望值断言（r 不变，n−s 已独立复算核对）。
 
-use rand_core::OsRng;
+// elliptic-curve 0.14 的密钥生成走可失败的 `Generate::try_generate_from_rng`；
+// SysRng 正是 rand_core 0.10 的可失败系统随机源，失败上抛为 EncryptionFailed。
+use getrandom::SysRng;
 
-// signature 2.2.0 在依赖图里只有一份实例，从 p256 的再导出引入一次即可
+// signature 3 在依赖图里只有一份实例，从 p256 的再导出引入一次即可
 // 供三条曲线共用（p384 / k256 的 ecdsa 模块再导出的是同一批类型）。
 use p256::ecdsa::signature::{Signer as _, Verifier as _};
+use p256::elliptic_curve::Generate;
 
 use crate::asymmetric::KeyPairHex;
 use crate::contract::{Identified, Signer};
@@ -53,7 +56,7 @@ macro_rules! ecdsa_signer {
                     .try_sign(message)
                     .map_err(|_| Error::SignFailed { label: $label })?;
                 // low-s 归一化（BIP-62 惯例）：`(r, s)` 与 `(r, n−s)` 只保留一个。
-                let signature = signature.normalize_s().unwrap_or(signature);
+                let signature = signature.normalize_s();
                 Ok(hex_encode(signature.to_bytes().as_slice()))
             }
 
@@ -80,8 +83,9 @@ macro_rules! ecdsa_signer {
             /// 生成密钥对：私钥 = 标量 hex，公钥 = SEC1 非压缩点 `04‖X‖Y` hex；
             /// 随机源为系统 CSPRNG。
             pub fn generate_key_pair_hex() -> Result<KeyPairHex> {
-                let signing_key = $curve::ecdsa::SigningKey::random(&mut OsRng);
-                let public_key = signing_key.verifying_key().to_encoded_point(false);
+                let signing_key = $curve::ecdsa::SigningKey::try_generate_from_rng(&mut SysRng)
+                    .map_err(|_| Error::EncryptionFailed { label: $label })?;
+                let public_key = signing_key.verifying_key().to_sec1_point(false);
                 Ok(KeyPairHex {
                     private_key_hex: hex_encode(signing_key.to_bytes().as_slice()),
                     public_key_hex: hex_encode(public_key.as_bytes()),

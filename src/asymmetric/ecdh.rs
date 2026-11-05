@@ -10,10 +10,13 @@
 //! 私钥为 0 或超出阶、公钥不在曲线上（含无法编码的无穷远点）一律拒绝为
 //! [`Error::InvalidKey`]。定值向量见各测试（RFC 5903 §8.1 / §8.2）。
 
-use rand_core::OsRng;
+// elliptic-curve 0.14 的密钥生成走可失败的 `Generate::try_generate_from_rng`；
+// SysRng 正是 rand_core 0.10 的可失败系统随机源，失败上抛为 EncryptionFailed。
+use getrandom::SysRng;
 
-// sec1 的 `ToEncodedPoint` 通过 p256 再导出引入一次，三条曲线共用同一份 trait。
-use p256::elliptic_curve::sec1::ToEncodedPoint;
+// sec1 的 `ToSec1Point` 通过 p256 再导出引入一次，三条曲线共用同一份 trait。
+use p256::elliptic_curve::Generate;
+use p256::elliptic_curve::sec1::ToSec1Point;
 
 use crate::asymmetric::KeyPairHex;
 use crate::contract::{Identified, KeyAgreement};
@@ -53,8 +56,9 @@ macro_rules! ecdh_agreement {
             /// 生成密钥对：私钥 = 标量 hex，公钥 = SEC1 非压缩点 `04‖X‖Y` hex；
             /// 随机源为系统 CSPRNG。
             pub fn generate_key_pair_hex() -> Result<KeyPairHex> {
-                let secret_key = $curve::SecretKey::random(&mut OsRng);
-                let public_key = secret_key.public_key().to_encoded_point(false);
+                let secret_key = $curve::SecretKey::try_generate_from_rng(&mut SysRng)
+                    .map_err(|_| Error::EncryptionFailed { label: $label })?;
+                let public_key = secret_key.public_key().to_sec1_point(false);
                 Ok(KeyPairHex {
                     private_key_hex: hex_encode(secret_key.to_bytes().as_slice()),
                     public_key_hex: hex_encode(public_key.as_bytes()),

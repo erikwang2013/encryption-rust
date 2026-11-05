@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 676" width="1000" height="676" role="img"
      aria-labelledby="lifeTitle lifeDesc"
-     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+     font-family="system-ui, sans-serif">
   <title id="lifeTitle">Request lifecycle — encryption-rust</title>
   <desc id="lifeDesc">Lifecycle of protected data: configure a 32-byte master key, derive per-algorithm subkeys, register implementations, encrypt with a random IV, store a versioned payload, then parse, verify, and decrypt; plus rotation and failure modes.</desc>
 
@@ -57,7 +57,7 @@
     <line x1="60" y1="168" x2="225" y2="168" stroke="#E2E8F0"/>
     <text x="60" y="194" font-size="11" fill="#475569">32-byte random master key, from</text>
     <text x="60" y="212" font-size="11" fill="#475569">env vars / KMS, never in code.</text>
-    <text x="60" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">load_master_key()</text>
+    <text x="60" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">load_master_key()</text>
   </g>
   <line x1="245" y1="185" x2="272" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -68,7 +68,7 @@
     <line x1="298" y1="168" x2="463" y2="168" stroke="#E2E8F0"/>
     <text x="298" y="194" font-size="11" fill="#475569">One subkey per algorithm,</text>
     <text x="298" y="212" font-size="11" fill="#475569">keys never cross algorithms.</text>
-    <text x="298" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">dgn:derive:aes-gcm</text>
+    <text x="298" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">dgn:derive:aes-gcm</text>
   </g>
   <line x1="483" y1="185" x2="510" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -79,7 +79,7 @@
     <line x1="536" y1="168" x2="701" y2="168" stroke="#E2E8F0"/>
     <text x="536" y="194" font-size="11" fill="#475569">Implementations register under</text>
     <text x="536" y="212" font-size="11" fill="#475569">their identifier(); unknown errors.</text>
-    <text x="536" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">registry.register(…)</text>
+    <text x="536" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">registry.register(…)</text>
   </g>
   <line x1="721" y1="185" x2="748" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -90,7 +90,7 @@
     <line x1="774" y1="168" x2="939" y2="168" stroke="#E2E8F0"/>
     <text x="774" y="194" font-size="11" fill="#475569">Fresh IV / nonce on every call,</text>
     <text x="774" y="212" font-size="11" fill="#475569">AEAD or encrypt-then-MAC.</text>
-    <text x="774" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.encrypt(&amp;data)</text>
+    <text x="774" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">manager.encrypt(&amp;data)</text>
   </g>
 
   <path d="M856 258 V278 H142 V310" fill="none" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
@@ -104,7 +104,7 @@
     <line x1="60" y1="372" x2="225" y2="372" stroke="#E2E8F0"/>
     <text x="60" y="398" font-size="11" fill="#475569">Binary into a BLOB column;</text>
     <text x="60" y="416" font-size="11" fill="#475569">text storage, base64 first.</text>
-    <text x="60" y="440" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v1 | IV | Tag/MAC | ciphertext</text>
+    <text x="60" y="440" font-size="10" fill="#334155" font-family="ui-monospace, monospace">v1 | IV | Tag/MAC | ciphertext</text>
   </g>
   <line x1="245" y1="389" x2="272" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -127,7 +127,7 @@
     <text x="536" y="398" font-size="11" fill="#475569">Check prefix and length, then</text>
     <text x="536" y="416" font-size="11" fill="#475569">constant-time compare Tag / MAC —</text>
     <text x="536" y="434" font-size="11" fill="#475569">any changed byte surfaces here.</text>
-    <text x="536" y="452" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">verify_slice / ct_eq</text>
+    <text x="536" y="452" font-size="10" fill="#334155" font-family="ui-monospace, monospace">verify_slice / ct_eq</text>
   </g>
   <line x1="721" y1="389" x2="748" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>

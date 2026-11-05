@@ -1,7 +1,7 @@
 <!-- Copyright (c) 2026 erik <erik@erik.xyz> — https://erik.xyz -->
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 676" width="1000" height="676" role="img"
      aria-labelledby="lifeTitle lifeDesc"
-     font-family="ui-sans-serif, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif">
+     font-family="system-ui, sans-serif">
   <title id="lifeTitle">请求生命周期 — encryption-rust</title>
   <desc id="lifeDesc">受保护数据的生命周期：配置 32 字节主密钥、派生各算法子密钥、注册实现、用随机 IV 加密、保存带版本的载荷，再到解析、校验与解密；另含轮换与失败模式。</desc>
 
@@ -57,7 +57,7 @@
     <line x1="60" y1="168" x2="225" y2="168" stroke="#E2E8F0"/>
     <text x="60" y="194" font-size="11" fill="#475569">32 字节随机主密钥，来自环境</text>
     <text x="60" y="212" font-size="11" fill="#475569">变量 / KMS，绝不写进代码。</text>
-    <text x="60" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">load_master_key()</text>
+    <text x="60" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">load_master_key()</text>
   </g>
   <line x1="245" y1="185" x2="272" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -68,7 +68,7 @@
     <line x1="298" y1="168" x2="463" y2="168" stroke="#E2E8F0"/>
     <text x="298" y="194" font-size="11" fill="#475569">每算法一份子密钥，</text>
     <text x="298" y="212" font-size="11" fill="#475569">密钥永不跨算法复用。</text>
-    <text x="298" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">dgn:derive:aes-gcm</text>
+    <text x="298" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">dgn:derive:aes-gcm</text>
   </g>
   <line x1="483" y1="185" x2="510" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -79,7 +79,7 @@
     <line x1="536" y1="168" x2="701" y2="168" stroke="#E2E8F0"/>
     <text x="536" y="194" font-size="11" fill="#475569">实现按自己的 identifier()</text>
     <text x="536" y="212" font-size="11" fill="#475569">注册，未知标识明确报错。</text>
-    <text x="536" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">registry.register(…)</text>
+    <text x="536" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">registry.register(…)</text>
   </g>
   <line x1="721" y1="185" x2="748" y2="185" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -90,7 +90,7 @@
     <line x1="774" y1="168" x2="939" y2="168" stroke="#E2E8F0"/>
     <text x="774" y="194" font-size="11" fill="#475569">每次调用新 IV / nonce，</text>
     <text x="774" y="212" font-size="11" fill="#475569">AEAD 或 encrypt-then-MAC。</text>
-    <text x="774" y="236" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">manager.encrypt(&amp;data)</text>
+    <text x="774" y="236" font-size="10" fill="#334155" font-family="ui-monospace, monospace">manager.encrypt(&amp;data)</text>
   </g>
 
   <path d="M856 258 V278 H142 V310" fill="none" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
@@ -104,7 +104,7 @@
     <line x1="60" y1="372" x2="225" y2="372" stroke="#E2E8F0"/>
     <text x="60" y="398" font-size="11" fill="#475569">二进制入 BLOB 列，</text>
     <text x="60" y="416" font-size="11" fill="#475569">文本存储先转 base64。</text>
-    <text x="60" y="440" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">v1 | IV | Tag/MAC | 密文</text>
+    <text x="60" y="440" font-size="10" fill="#334155" font-family="ui-monospace, monospace">v1 | IV | Tag/MAC | 密文</text>
   </g>
   <line x1="245" y1="389" x2="272" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>
@@ -127,7 +127,7 @@
     <text x="536" y="398" font-size="11" fill="#475569">先查前缀与长度，再以常量</text>
     <text x="536" y="416" font-size="11" fill="#475569">时间比对 Tag / MAC —— 任何</text>
     <text x="536" y="434" font-size="11" fill="#475569">字节被改都在这里露馅。</text>
-    <text x="536" y="452" font-size="10" fill="#334155" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">verify_slice / ct_eq</text>
+    <text x="536" y="452" font-size="10" fill="#334155" font-family="ui-monospace, monospace">verify_slice / ct_eq</text>
   </g>
   <line x1="721" y1="389" x2="748" y2="389" stroke="#94A3B8" stroke-width="1.8" marker-end="url(#lcArw)"/>
   <g>

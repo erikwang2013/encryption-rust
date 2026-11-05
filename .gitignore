@@ -5,6 +5,11 @@
 .claude-flow/data/
 .claude-flow/logs/
 .claude-flow/sessions/
+.claude-flow/metrics/
+.claude-flow/memory-package.json
+.claude-flow/security/
+ruvector.db
+.swarm/
 
 # Codex local configuration
 .codex/

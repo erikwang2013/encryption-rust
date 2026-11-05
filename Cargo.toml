@@ -2,7 +2,7 @@
 
 [package]
 name = "encryption-rust"
-version = "1.3.0"
+version = "1.3.1"
 edition = "2024"
 rust-version = "1.88"
 description = "可插拔密码学组件库的 Rust 实现：在统一契约下提供对称加密、非对称加密、哈希、密钥派生（HKDF / PBKDF2 / Argon2 / scrypt）、签名（SM2 / ECDSA / Ed25519）、密钥协商（ECDH / X25519）与后量子密钥封装（ML-KEM），包含 AES/Sodium 与国密 SM2/SM3/SM4/ZUC 等实现"
@@ -138,11 +138,13 @@ getrandom = { version = "0.4", features = ["sys_rng"] }
 ml-kem = { version = "0.2.3", features = ["zeroize"] }
 
 # ── 非对称能力扩充：ECDSA（P-256 / P-384 / secp256k1）/ Ed25519 / X25519 ────
-# 统一钉在 RustCrypto「elliptic-curve 0.13 / signature 2 / sha2 0.10 / rand_core 0.6」
-# 代际（与 cipher 0.4 代际同样的钉版理由：跨代际 trait 不匹配）。
-p256 = { version = "0.13.2", features = ["ecdsa", "ecdh"] }   # ECDSA P-256（SHA-256）+ ECDH
-p384 = { version = "0.13.1", features = ["ecdsa", "ecdh"] }   # ECDSA P-384（SHA-384）+ ECDH
-k256 = { version = "0.13.4", features = ["ecdsa", "ecdh"] }   # ECDSA secp256k1（SHA-256）+ ECDH
+# p256 / p384 / k256 走 elliptic-curve 0.14 代际，与 sm2 0.14 同一栈
+# （crypto-bigint 0.7.x / signature 3 / rand_core 0.10）。0.13 代际经
+# crypto-bigint 0.5 引入 RUSTSEC-2026-0387 的常量时间缺陷且 0.5 线无补丁，
+# 因此必须留在 0.14。随机源用 getrandom 的 SysRng（见 ecdh.rs / ecdsa.rs）。
+p256 = { version = "0.14", features = ["ecdsa", "ecdh"] }   # ECDSA P-256（SHA-256）+ ECDH
+p384 = { version = "0.14", features = ["ecdsa", "ecdh"] }   # ECDSA P-384（SHA-384）+ ECDH
+k256 = { version = "0.14", features = ["ecdsa", "ecdh"] }   # ECDSA secp256k1（SHA-256）+ ECDH
 ed25519-dalek = { version = "2.2", features = ["rand_core"] } # Ed25519 签名（RFC 8032）
 x25519-dalek = { version = "2.0.1", features = [
     "static_secrets",   # 以持久私钥参与协商（本库 API 每次调用传入私钥）
