@@ -12,6 +12,7 @@ authors = ["erik <erik@erik.xyz>"]
 keywords = ["encryption", "cryptography", "sm2", "sm3", "sm4"]
 categories = ["cryptography"]
 readme = "README.md"
+homepage = "https://package.erik.xyz/encryption"
 
 # 随包只发「读代码 / 用库」要用的东西。`docs/pet.svg` 绝不能排 —— src/pet.rs 用
 # include_str! 内联它，排掉就编译不过（cargo package 会当场报错，不会静默漏发）。
