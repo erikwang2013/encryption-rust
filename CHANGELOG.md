@@ -4,6 +4,13 @@
 
 本项目遵循 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 与[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [1.3.2] - 2026-11-07
+
+> 仅 crate 元数据变更；代码、公开 API、密文格式与派生方案均未变。按 semver 为 patch。
+
+### Changed
+- `Cargo.toml` 增加 `homepage = "https://package.erik.xyz/encryption"`，crates.io / docs.rs 页面展示项目主页
+
 ## [1.3.1] - 2026-11-05
 
 > 安全补丁与仓库清理；公开 API、密文格式与派生方案均未变。按 semver 为 patch。
